@@ -1,0 +1,163 @@
+shopflow-project/
+├── backend/                              # Flask 後端 API (MVC)
+│   ├── app/
+│   │   ├── __init__.py                  # Flask app 初始化、Blueprints 註冊
+│   │   │
+│   │   ├── models/                      # Model 層：資料模型
+│   │   │   ├── __init__.py
+│   │   │   ├── user.py                  # User, Customer 模型
+│   │   │   ├── product.py               # Product, ProductImage, ProductSpec 模型
+│   │   │   ├── order.py                 # Order, OrderItem 模型
+│   │   │   ├── category.py              # Category 模型
+│   │   │   ├── cart.py                  # Cart, CartItem 模型
+│   │   │   └── cms.py                   # Carousel, StoreInfo 模型
+│   │   │
+│   │   ├── controllers/                 # Controller 層：路由處理（原 routes）
+│   │   │   ├── __init__.py              # Blueprints 註冊
+│   │   │   ├── customer_controller.py   # 前台 API 路由
+│   │   │   │                            # - /api/auth/* (登入、登出、註冊)
+│   │   │   │                            # - /api/products/* (商品列表、詳情、搜尋)
+│   │   │   │                            # - /api/cart/* (購物車操作)
+│   │   │   │                            # - /api/orders/* (訂單建立、查詢)
+│   │   │   │                            # - /api/categories/* (分類列表)
+│   │   │   │
+│   │   │   └── admin_controller.py      # 後台 API 路由
+│   │   │                                # - /api/admin/auth/* (後台登入)
+│   │   │                                # - /api/admin/orders/* (訂單管理、狀態更新、出貨)
+│   │   │                                # - /api/admin/products/* (商品 CRUD、圖片上傳)
+│   │   │                                # - /api/admin/categories/* (分類管理)
+│   │   │                                # - /api/admin/cms/* (輪播圖、商店設定)
+│   │   │
+│   │   ├── services/                    # Service 層：商業邏輯（簡化版）
+│   │   │   ├── __init__.py
+│   │   │   ├── auth_service.py          # 認證邏輯（JWT、密碼加密）
+│   │   │   ├── product_service.py       # 商品邏輯（查詢、篩選、排序）
+│   │   │   ├── order_service.py         # 訂單邏輯（建立、狀態轉換）
+│   │   │   ├── cart_service.py          # 購物車邏輯
+│   │   │   └── cms_service.py           # CMS 邏輯（輪播圖、商店設定）
+│   │   │
+│   │   ├── utils/                       # 工具函數（合併簡化）
+│   │   │   ├── __init__.py
+│   │   │   ├── auth_utils.py            # JWT、密碼加密（合併 auth 相關）
+│   │   │   ├── file_utils.py            # 檔案上傳處理（商品圖片、輪播圖）
+│   │   │   └── validators.py            # 輸入驗證（簡化的 Pydantic schemas）
+│   │   │
+│   │   └── static/                      # 靜態檔案
+│   │       └── uploads/                 # 上傳檔案目錄
+│   │           ├── products/            # 商品圖片
+│   │           └── carousels/          # 輪播圖
+│   │
+│   ├── config.py                        # 環境設定 (dev/prod)
+│   ├── run.py                           # 啟動入口
+│   ├── requirements.txt                 # Python 套件需求
+│   ├── .env.example                     # 環境變數範例
+│   └── .gitignore
+│
+├── frontend-customer/                   # 前台購物網站 (Vue 3 + Vite)
+│   ├── src/
+│   │   ├── views/                       # View 層：頁面元件
+│   │   │   ├── Home.vue                # 首頁（輪播圖、推薦商品）
+│   │   │   ├── ProductList.vue         # 商品清單頁（排序、篩選）
+│   │   │   ├── ProductDetail.vue       # 商品詳情頁（多圖、規格選擇）
+│   │   │   ├── Cart.vue                # 購物車頁面
+│   │   │   ├── Checkout.vue            # 結帳頁面（金流、物流）
+│   │   │   ├── Login.vue               # 登入頁
+│   │   │   ├── Register.vue            # 註冊頁
+│   │   │   └── OrderDetail.vue         # 訂單詳情頁
+│   │   │
+│   │   ├── components/                  # 可重用元件
+│   │   │   ├── layout/                 # 版面元件
+│   │   │   │   ├── Header.vue         # 導航列（分類、搜尋、購物車、會員）
+│   │   │   │   └── Footer.vue         # 頁腳
+│   │   │   │
+│   │   │   ├── product/                # 商品相關元件
+│   │   │   │   ├── ProductCard.vue    # 商品卡片
+│   │   │   │   └── ProductImageGallery.vue # 商品圖片輪播
+│   │   │   │
+│   │   │   ├── cart/                   # 購物車相關元件
+│   │   │   │   └── CartItem.vue       # 購物車項目
+│   │   │   │
+│   │   │   └── common/                 # 通用元件
+│   │   │       ├── Loading.vue        # 載入中
+│   │   │       └── EmptyState.vue     # 空狀態
+│   │   │
+│   │   ├── api/                         # API 呼叫封裝
+│   │   │   ├── index.js               # axios 設定與攔截器
+│   │   │   ├── auth.js                # 認證相關 API
+│   │   │   ├── product.js             # 商品相關 API
+│   │   │   ├── cart.js                # 購物車相關 API
+│   │   │   ├── order.js               # 訂單相關 API
+│   │   │   └── category.js            # 分類相關 API
+│   │   │
+│   │   ├── router/                      # Vue Router 設定
+│   │   │   └── index.js
+│   │   │
+│   │   ├── store/                       # Pinia 狀態管理（簡化版）
+│   │   │   ├── index.js               # Store 入口
+│   │   │   ├── cart.js                # 購物車狀態
+│   │   │   └── auth.js                # 會員認證狀態
+│   │   │
+│   │   ├── App.vue
+│   │   └── main.js
+│   │
+│   ├── public/
+│   ├── package.json
+│   ├── vite.config.js
+│   └── .env.example
+│
+├── frontend-admin/                      # 後台管理平台 (Vue 3 + Element Plus)
+│   ├── src/
+│   │   ├── views/                       # View 層：頁面元件
+│   │   │   ├── Dashboard.vue          # 儀表板（選配）
+│   │   │   ├── OrderManagement.vue     # 訂單管理（列表、篩選、狀態更新、出貨）
+│   │   │   ├── OrderDetail.vue        # 訂單詳情
+│   │   │   ├── ProductManagement.vue  # 商品管理（列表、新增、編輯、刪除）
+│   │   │   ├── ProductEdit.vue        # 商品編輯頁（圖片上傳、規格設定）
+│   │   │   ├── CategoryManagement.vue # 分類管理
+│   │   │   ├── CMS.vue                # CMS 設定（輪播圖、商店設定）
+│   │   │   └── Login.vue              # 後台登入頁
+│   │   │
+│   │   ├── components/                  # 可重用元件
+│   │   │   ├── layout/                 # 版面元件
+│   │   │   │   ├── AdminLayout.vue   # 後台主版面
+│   │   │   │   ├── Sidebar.vue       # 側邊欄選單
+│   │   │   │   └── Header.vue        # 後台頂部列
+│   │   │   │
+│   │   │   ├── order/                  # 訂單相關元件
+│   │   │   │   ├── OrderTable.vue    # 訂單表格
+│   │   │   │   └── OrderFilter.vue   # 訂單篩選器
+│   │   │   │
+│   │   │   ├── product/                # 商品相關元件
+│   │   │   │   ├── ProductTable.vue  # 商品表格
+│   │   │   │   ├── ProductForm.vue   # 商品表單
+│   │   │   │   └── ImageUploader.vue # 圖片上傳元件
+│   │   │   │
+│   │   │   └── common/                 # 通用元件
+│   │   │       └── DataTable.vue     # 通用表格元件
+│   │   │
+│   │   ├── api/                         # API 呼叫封裝
+│   │   │   ├── index.js               # axios 設定與攔截器
+│   │   │   ├── auth.js                # 後台認證 API
+│   │   │   ├── order.js               # 訂單管理 API
+│   │   │   ├── product.js             # 商品管理 API
+│   │   │   ├── category.js            # 分類管理 API
+│   │   │   └── cms.js                 # CMS API
+│   │   │
+│   │   ├── router/                      # Vue Router 設定
+│   │   │   └── index.js
+│   │   │
+│   │   ├── store/                       # Pinia 狀態管理（簡化版）
+│   │   │   ├── index.js               # Store 入口
+│   │   │   ├── auth.js                # 後台認證狀態
+│   │   │   └── order.js               # 訂單狀態
+│   │   │
+│   │   ├── App.vue
+│   │   └── main.js
+│   │
+│   ├── public/
+│   ├── package.json
+│   ├── vite.config.js
+│   └── .env.example
+│
+├── .gitignore
+└── README.md                            # 專案說明文件
