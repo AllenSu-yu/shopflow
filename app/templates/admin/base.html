@@ -24,33 +24,39 @@
 <div class="container-fluid">
     <div class="row">
         <!-- 側邊欄 -->
-        <nav id="sidebar" class="col-md-3 col-lg-2 d-md-block bg-dark sidebar collapse">
-            <div class="position-sticky pt-3">
-                <h5 class="text-white px-3 mb-3">
-                    <i class="bi bi-grid"></i> 功能選單
-                </h5>
-                <ul class="nav flex-column">
-                    <li class="nav-item">
-                        <a class="nav-link text-white" href="/admin/products" id="nav-products">
-                            <i class="bi bi-box"></i> 商品管理
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link text-white" href="/admin/orders" id="nav-orders">
-                            <i class="bi bi-cart-check"></i> 訂單管理
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link text-white" href="/admin/categories" id="nav-categories">
-                            <i class="bi bi-tags"></i> 分類管理
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link text-white" href="/admin/cms" id="nav-cms">
-                            <i class="bi bi-images"></i> 商店與首頁設定
-                        </a>
-                    </li>
-                </ul>
+        <nav id="sidebar" class="col-md-3 col-lg-2 d-md-block bg-dark sidebar offcanvas-md offcanvas-start" tabindex="-1">
+            <div class="offcanvas-header d-md-none">
+                <h5 class="offcanvas-title text-white" id="sidebarLabel">功能選單</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" data-bs-target="#sidebar"></button>
+            </div>
+            <div class="offcanvas-body p-0">
+                <div class="position-sticky pt-3 w-100">
+                    <h5 class="text-white px-3 mb-3 d-none d-md-block">
+                        <i class="bi bi-grid"></i> 功能選單
+                    </h5>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link text-white" href="/admin/products" id="nav-products">
+                                <i class="bi bi-box"></i> 商品管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-white" href="/admin/orders" id="nav-orders">
+                                <i class="bi bi-cart-check"></i> 訂單管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-white" href="/admin/categories" id="nav-categories">
+                                <i class="bi bi-tags"></i> 分類管理
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-white" href="/admin/cms" id="nav-cms">
+                                <i class="bi bi-images"></i> 商店與首頁設定
+                            </a>
+                        </li>
+                    </ul>
+                </div>
             </div>
         </nav>
 
