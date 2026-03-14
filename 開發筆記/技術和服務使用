@@ -1,6 +1,0 @@
-後端：python+FastAPI
-DB：AWS RDS
-伺服器：AWS EC2
-圖片儲存：AWS S3
-網址：Route 53
-CDN：CloudFront
