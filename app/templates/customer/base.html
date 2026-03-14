@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block content %}
+<nav class="navbar navbar-expand-lg navbar-dark custom-navbar">
+    <div class="container">
+        <a class="navbar-brand" href="/">
+            <i class="bi bi-shop"></i> ShopFlow
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto" id="main-nav">
+                <li class="nav-item">
+                    <a class="nav-link" href="/products">全部商品</a>
+                </li>
+                <!-- 分類將由 JavaScript 動態載入到此處 -->
+            </ul>
+            <ul class="navbar-nav">
+                <li class="nav-item">
+                    <a class="nav-link" href="/cart">
+                        <i class="bi bi-cart"></i> 購物車
+                        <span id="cart-count" class="badge bg-danger">0</span>
+                    </a>
+                </li>
+                <!-- 用戶登入狀態區域（由 JavaScript 動態更新） -->
+                <li class="nav-item dropdown" id="user-menu" style="display: none;">
+                    <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person"></i> <span id="user-name">用戶</span>
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="/orders">我的訂單</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#" onclick="logout()">登出</a></li>
+                    </ul>
+                </li>
+                <li class="nav-item" id="login-menu">
+                    <a class="nav-link" href="/login" id="login-link">登入</a>
+                </li>
+                <li class="nav-item" id="register-menu">
+                    <a class="nav-link" href="/register" id="register-link">註冊</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<main>
+    {% block customer_content %}{% endblock %}
+</main>
+
+<footer class="bg-light mt-5 py-4">
+    <div class="container text-center">
+        <p class="mb-0">&copy; 2026 ShopFlow. All rights reserved.</p>
+    </div>
+</footer>
+
+<script>
+// 載入分類列表到導航欄（避免與其他頁面的 loadCategories 函數衝突）
+async function loadNavCategories() {
+    try {
+        const response = await fetch('/api/categories');
+        if (!response.ok) {
+            console.error('API 請求失敗:', response.status);
+            return;
+        }
+        const data = await response.json();
+        const mainNav = document.getElementById('main-nav');
+        
+        if (!mainNav) {
+            console.error('找不到 main-nav 元素');
+            return;
+        }
+        
+        const categories = data.categories || [];
+        console.log('載入導航欄分類:', categories);
+        
+        if (categories.length === 0) {
+            console.warn('沒有找到任何分類');
+            return;
+        }
+        
+        // 為每個分類創建 li 元素並添加到導航欄
+        categories.forEach(category => {
+            const li = document.createElement('li');
+            li.className = 'nav-item';
+            const link = document.createElement('a');
+            link.className = 'nav-link';
+            link.href = `/products?category_id=${category.id}`;
+            link.textContent = category.name;
+            li.appendChild(link);
+            mainNav.appendChild(li);
+        });
+        
+        console.log('導航欄分類載入完成，共', categories.length, '個分類');
+    } catch (error) {
+        console.error('載入導航欄分類失敗:', error);
+    }
+}
+
+// 更新導航欄的登入狀態
+function updateNavAuthStatus() {
+    const userMenu = document.getElementById('user-menu');
+    const loginMenu = document.getElementById('login-menu');
+    const registerMenu = document.getElementById('register-menu');
+    const userNameSpan = document.getElementById('user-name');
+    
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+        try {
+            const user = JSON.parse(userStr);
+            // 顯示用戶選單，隱藏登入/註冊按鈕
+            if (userMenu) {
+                userMenu.style.display = 'block';
+                if (userNameSpan) {
+                    userNameSpan.textContent = user.name || '用戶';
+                }
+            }
+            if (loginMenu) loginMenu.style.display = 'none';
+            if (registerMenu) registerMenu.style.display = 'none';
+        } catch (e) {
+            console.error('解析用戶資訊失敗:', e);
+            // 如果解析失敗，顯示登入/註冊按鈕
+            if (userMenu) userMenu.style.display = 'none';
+            if (loginMenu) loginMenu.style.display = 'block';
+            if (registerMenu) registerMenu.style.display = 'block';
+        }
+    } else {
+        // 沒有用戶資訊，顯示登入/註冊按鈕
+        if (userMenu) userMenu.style.display = 'none';
+        if (loginMenu) loginMenu.style.display = 'block';
+        if (registerMenu) registerMenu.style.display = 'block';
+    }
+}
+
+// 處理登入連結點擊事件
+function handleLoginClick(e) {
+    const token = localStorage.getItem('token');
+    const userStr = localStorage.getItem('user');
+    
+    // 如果已經登入，更新導航欄並阻止跳轉
+    if (token && userStr) {
+        e.preventDefault();
+        updateNavAuthStatus();
+        // 可選：顯示提示訊息
+        console.log('您已經登入，導航欄已更新');
+        return false;
+    }
+    // 如果未登入，正常跳轉到登入頁
+    return true;
+}
+
+// 處理註冊連結點擊事件
+function handleRegisterClick(e) {
+    const token = localStorage.getItem('token');
+    const userStr = localStorage.getItem('user');
+    
+    // 如果已經登入，更新導航欄並阻止跳轉
+    if (token && userStr) {
+        e.preventDefault();
+        updateNavAuthStatus();
+        // 可選：顯示提示訊息
+        console.log('您已經登入，導航欄已更新');
+        return false;
+    }
+    // 如果未登入，正常跳轉到註冊頁
+    return true;
+}
+
+// 頁面載入時初始化購物車數量和分類列表
+document.addEventListener('DOMContentLoaded', function() {
+    // 更新導航欄的登入狀態
+    updateNavAuthStatus();
+    
+    // 為登入連結添加點擊事件監聽
+    const loginLink = document.getElementById('login-link');
+    if (loginLink) {
+        loginLink.addEventListener('click', handleLoginClick);
+    }
+    
+    // 為註冊連結添加點擊事件監聽
+    const registerLink = document.getElementById('register-link');
+    if (registerLink) {
+        registerLink.addEventListener('click', handleRegisterClick);
+    }
+    
+    // 載入導航欄分類列表
+    loadNavCategories();
+    
+    // 如果是 cart 頁面，不在此處更新購物車數量（cart.html 會自己處理）
+    if (window.location.pathname === '/cart') {
+        return;
+    }
+    
+    // 確保 main.js 已載入後再調用
+    if (typeof updateCartCount === 'function') {
+        updateCartCount();
+    } else {
+        // 如果 main.js 還沒載入，等待一下再試
+        setTimeout(function() {
+            if (typeof updateCartCount === 'function') {
+                updateCartCount();
+            }
+        }, 100);
+    }
+});
+</script>
+{% endblock %}
+
+{% block extra_js %}{% endblock %}

@@ -1,0 +1,263 @@
+{% extends "customer/base.html" %}
+
+{% block title %}商品分類頁 - ShopFlow{% endblock %}
+
+{% block customer_content %}
+<div class="container my-5">
+    <div class="row">
+        <!-- 側邊欄：分類篩選 -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-header">
+                    <h5>商品分類</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush" id="category-filter">
+                        <li class="list-group-item">
+                            <a href="/products" class="text-decoration-none">全部商品</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 商品列表 -->
+        <div class="col-md-9">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>商品列表</h2>
+                <div>
+                    <input type="text" class="form-control" id="search-input" placeholder="搜尋商品" 
+                           onkeyup="handleSearchInput(event)">
+                </div>
+            </div>
+            
+            <div class="row" id="products-list">
+                <!-- 商品將由 JavaScript 動態載入 -->
+            </div>
+            
+            <!-- 分頁 -->
+            <nav aria-label="商品分頁">
+                <ul class="pagination justify-content-center" id="pagination">
+                    <!-- 分頁將由 JavaScript 動態載入 -->
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentPage = 1;
+let currentCategoryId = null;
+let currentSearch = '';
+let searchTimeout = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const categoryIdParam = urlParams.get('category_id');
+    currentCategoryId = categoryIdParam ? parseInt(categoryIdParam) : null;
+    currentSearch = urlParams.get('search') || '';
+    
+    if (currentSearch) {
+        document.getElementById('search-input').value = currentSearch;
+    }
+    
+    loadCategories();
+    loadProducts();
+});
+
+async function loadCategories() {
+    try {
+        const response = await fetch('/api/categories');
+        const data = await response.json();
+        const categoryFilter = document.getElementById('category-filter');
+        const categories = data.categories || [];
+        
+        // 建立分類列表 HTML，使用 JavaScript 事件處理點擊
+        let html = '<li class="list-group-item">' +
+            `<a href="#" class="text-decoration-none ${currentCategoryId == null ? 'fw-bold' : ''}" 
+               data-category-id="null" onclick="filterByCategory(null); return false;">全部商品</a>` +
+            '</li>';
+        
+        html += categories.map(category => `
+            <li class="list-group-item">
+                <a href="#" class="text-decoration-none ${currentCategoryId == category.id ? 'fw-bold' : ''}" 
+                   data-category-id="${category.id}" onclick="filterByCategory(${category.id}); return false;">
+                    ${category.name}
+                </a>
+            </li>
+        `).join('');
+        
+        categoryFilter.innerHTML = html;
+    } catch (error) {
+        console.error('載入分類失敗:', error);
+    }
+}
+
+async function loadProducts(page = 1) {
+    try {
+        const limit = 4; //每頁的商品數量
+        const skip = (page - 1) * limit;
+        let url;
+        let response;
+        
+        // 如果有搜尋關鍵字，使用搜尋端點
+        if (currentSearch && currentSearch.trim()) {
+            url = `/api/products/search?keyword=${encodeURIComponent(currentSearch.trim())}&skip=${skip}&limit=${limit}`;
+            if (currentCategoryId) {
+                url += `&category_id=${currentCategoryId}`;
+            }
+        } else {
+            // 否則使用一般商品列表端點
+            url = `/api/products?skip=${skip}&limit=${limit}`;
+            if (currentCategoryId) {
+                url += `&category_id=${currentCategoryId}`;
+            }
+        }
+        
+        response = await fetch(url);
+        const data = await response.json();
+        const productsList = document.getElementById('products-list');
+        
+        if (data.products.length === 0) {
+            productsList.innerHTML = '<div class="col-12"><p class="text-center">沒有找到商品</p></div>';
+            // 清空分頁
+            document.getElementById('pagination').innerHTML = '';
+            return;
+        }
+        
+        productsList.innerHTML = data.products.map(product => {
+            // 取得商品圖片：優先使用 primary_image，否則從 images 陣列中取得第一張
+            let imageUrl = product.primary_image;
+            if (!imageUrl && product.images && product.images.length > 0) {
+                // 優先使用 is_primary=true 的圖片，否則使用第一張
+                const primaryImg = product.images.find(img => img.is_primary);
+                imageUrl = primaryImg ? primaryImg.image_url : product.images[0].image_url;
+            }
+            // 如果沒有圖片，使用預設圖片
+            imageUrl = imageUrl || '/static/images/placeholder.png';
+            
+            return `
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-img-top-container" style="height: 200px; background-color: #f8f9fa; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                        <img src="${imageUrl}" class="card-img-top" style="max-height: 100%; max-width: 100%; width: auto; height: auto; object-fit: contain; object-position: center;" alt="${product.name}" onerror="this.src='/static/images/placeholder.png'">
+                    </div>
+                    <div class="card-body">
+                        <h5 class="card-title">${product.name}</h5>
+                        <p class="card-text text-danger fw-bold">NT$ ${product.price_range?.display || '0'}</p>
+                        <a href="/products/${product.id}" class="btn btn-primary">查看詳情</a>
+                    </div>
+                </div>
+            </div>
+            `;
+        }).join('');
+        
+        // 計算總頁數
+        const totalPages = Math.ceil(data.total / limit);
+        // 更新分頁
+        updatePagination(data.total, page, totalPages);
+        currentPage = page;
+    } catch (error) {
+        console.error('載入商品失敗:', error);
+        const productsList = document.getElementById('products-list');
+        productsList.innerHTML = '<div class="col-12"><p class="text-center text-danger">載入商品時發生錯誤</p></div>';
+    }
+}
+
+function updatePagination(total, page, pages) {
+    const pagination = document.getElementById('pagination');
+    let html = '';
+    
+    if (page > 1) {
+        html += `<li class="page-item"><a class="page-link" href="#" onclick="loadProducts(${page - 1})">上一頁</a></li>`;
+    }
+    
+    for (let i = 1; i <= pages; i++) {
+        html += `<li class="page-item ${i === page ? 'active' : ''}"><a class="page-link" href="#" onclick="loadProducts(${i})">${i}</a></li>`;
+    }
+    
+    if (page < pages) {
+        html += `<li class="page-item"><a class="page-link" href="#" onclick="loadProducts(${page + 1})">下一頁</a></li>`;
+    }
+    
+    pagination.innerHTML = html;
+}
+
+// 處理搜尋輸入（使用防抖，延遲 500ms 後執行搜尋）
+function handleSearchInput(event) {
+    // 如果按 Enter 鍵，立即執行搜尋
+    if (event.key === 'Enter') {
+        if (searchTimeout) {
+            clearTimeout(searchTimeout);
+        }
+        searchProducts();
+        return;
+    }
+    
+    // 清除之前的計時器
+    if (searchTimeout) {
+        clearTimeout(searchTimeout);
+    }
+    
+    // 設置新的計時器，500ms 後執行搜尋
+    searchTimeout = setTimeout(() => {
+        searchProducts();
+    }, 500);
+}
+
+function searchProducts() {
+    const searchValue = document.getElementById('search-input').value.trim();
+    currentSearch = searchValue;
+    
+    // 更新 URL 參數
+    const url = new URL(window.location);
+    if (searchValue) {
+        url.searchParams.set('search', searchValue);
+    } else {
+        url.searchParams.delete('search');
+    }
+    window.history.pushState({}, '', url);
+    
+    // 重新載入商品（回到第一頁）
+    loadProducts(1);
+}
+
+function filterByCategory(categoryId) {
+    currentCategoryId = categoryId;
+    // 更新 URL 但不重新載入頁面
+    const url = new URL(window.location);
+    if (categoryId) {
+        url.searchParams.set('category_id', categoryId);
+    } else {
+        url.searchParams.delete('category_id');
+    }
+    window.history.pushState({}, '', url);
+    // 更新分類的高亮狀態
+    updateCategoryHighlight();
+    // 重新載入商品
+    loadProducts(1);
+}
+
+function updateCategoryHighlight() {
+    // 更新所有分類連結的高亮狀態
+    const categoryLinks = document.querySelectorAll('#category-filter a');
+    categoryLinks.forEach(link => {
+        const categoryIdAttr = link.getAttribute('data-category-id');
+        // 處理全部商品連結（data-category-id="null"）
+        if (categoryIdAttr === 'null' && currentCategoryId === null) {
+            link.classList.add('fw-bold');
+        } else if (categoryIdAttr === 'null') {
+            link.classList.remove('fw-bold');
+        } 
+        // 處理分類連結
+        else if (categoryIdAttr && parseInt(categoryIdAttr) === currentCategoryId) {
+            link.classList.add('fw-bold');
+        } else {
+            link.classList.remove('fw-bold');
+        }
+    });
+}
+</script>
+{% endblock %}

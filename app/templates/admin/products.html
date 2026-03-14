@@ -1,0 +1,1157 @@
+{% extends "admin/base.html" %}
+
+{% block title %}商品管理 - ShopFlow{% endblock %}
+
+{% block page_title %}商品管理{% endblock %}
+
+{% block admin_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0">商品列表</h4>
+        <small class="text-muted">管理所有商品資訊</small>
+    </div>
+    <button class="btn btn-primary" onclick="showAddProductModal()">
+        <i class="bi bi-plus-circle"></i> 新增商品
+    </button>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped">
+                <thead class="table-dark">
+                    <tr>
+                        <th>ID</th>
+                        <th>圖片</th>
+                        <th>商品名稱</th>
+                        <th>分類</th>
+                        <th>價格</th>
+                        <th>庫存</th>
+                        <th>狀態</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="products-table">
+                    <!-- 商品列表將由 JavaScript 動態載入 -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 新增/編輯商品 Modal -->
+<div class="modal fade" id="productModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="productModalTitle">新增商品</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="max-height: 80vh; overflow-y: auto;">
+                <form id="product-form">
+                    <input type="hidden" id="product-id">
+                    
+                    <!-- 基本資訊 -->
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0">基本資訊</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="product-name" class="form-label">商品名稱 *</label>
+                                <input type="text" class="form-control" id="product-name" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="product-description" class="form-label">商品描述</label>
+                                <textarea class="form-control" id="product-description" rows="3"></textarea>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="product-category" class="form-label">分類 *</label>
+                                    <select class="form-select" id="product-category" required>
+                                        <option value="">請選擇分類</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">狀態</label>
+                                    <div class="form-check form-switch mt-2">
+                                        <input class="form-check-input" type="checkbox" id="product-is-active" checked>
+                                        <label class="form-check-label" for="product-is-active">啟用</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 規格群組 -->
+                    <div class="card mb-3">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">規格群組</h6>
+                            <button type="button" class="btn btn-sm btn-primary" onclick="addSpecGroup()">
+                                <i class="bi bi-plus-circle"></i> 新增規格群組
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div id="spec-groups-container">
+                                <!-- 規格群組將動態添加在這裡 -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 商品SKU -->
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0">商品SKU</h6>
+                        </div>
+                        <div class="card-body">
+                            <div id="variants-container">
+                                <p class="text-muted">請先設定規格群組，系統將自動生成SKU表格</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 圖片管理 -->
+                    <div class="card mb-3">
+                        <div class="card-header">
+                            <h6 class="mb-0">商品圖片</h6>
+                        </div>
+                        <div class="card-body">
+                            <div id="product-images-container" class="d-flex flex-wrap gap-2 mb-3">
+                                <!-- 現有圖片將顯示在這裡 -->
+                            </div>
+                            <input type="file" class="form-control" id="product-image" accept=".jpg,.jpeg,.png,.gif,.webp" multiple>
+                            <small class="text-muted">可選擇多張圖片（支援格式：JPG, PNG, GIF, WEBP；每張最大 10MB，總大小不超過 50MB）</small>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveProduct()">儲存</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let categories = [];
+let specGroups = [];
+let currentImages = [];
+let originalImages = []; // 儲存原始圖片狀態，用於比較變更
+let imagesToDelete = []; // 標記要刪除的圖片 ID
+
+document.addEventListener('DOMContentLoaded', function() {
+    checkAdminAuth();
+    loadCategories();
+    loadProducts();
+    
+    // 添加檔案大小驗證
+    const imageInput = document.getElementById('product-image');
+    if (imageInput) {
+        imageInput.addEventListener('change', function(e) {
+            validateImageFiles(e.target.files);
+        });
+    }
+    
+    // 修復 modal 無障礙問題：在關閉前移除焦點
+    const productModal = document.getElementById('productModal');
+    if (productModal) {
+        productModal.addEventListener('hide.bs.modal', function() {
+            // 移除所有按鈕的焦點
+            const activeElement = document.activeElement;
+            if (activeElement && activeElement.tagName === 'BUTTON') {
+                activeElement.blur();
+            }
+        });
+        
+        productModal.addEventListener('hidden.bs.modal', function() {
+            // 確保 modal 關閉後移除 aria-hidden 相關問題
+            const buttons = productModal.querySelectorAll('button');
+            buttons.forEach(btn => btn.blur());
+        });
+    }
+});
+
+// 驗證圖片檔案大小和格式
+function validateImageFiles(files) {
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    const MAX_TOTAL_SIZE = 50 * 1024 * 1024; // 總大小限制 50MB
+    const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    
+    if (!files || files.length === 0) {
+        return true;
+    }
+    
+    let totalSize = 0;
+    const invalidSizeFiles = [];
+    const invalidFormatFiles = [];
+    
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        totalSize += file.size;
+        
+        // 檢查檔案格式
+        const fileName = file.name.toLowerCase();
+        const fileExt = fileName.substring(fileName.lastIndexOf('.'));
+        if (!ALLOWED_EXTENSIONS.includes(fileExt)) {
+            invalidFormatFiles.push({
+                name: file.name,
+                extension: fileExt || '無副檔名'
+            });
+        }
+        
+        // 檢查檔案大小
+        if (file.size > MAX_FILE_SIZE) {
+            invalidSizeFiles.push({
+                name: file.name,
+                size: (file.size / 1024 / 1024).toFixed(2) + 'MB',
+                maxSize: (MAX_FILE_SIZE / 1024 / 1024) + 'MB'
+            });
+        }
+    }
+    
+    // 檢查格式
+    if (invalidFormatFiles.length > 0) {
+        const fileList = invalidFormatFiles.map(f => `  - ${f.name} (格式: ${f.extension})`).join('\n');
+        alert(`以下圖片格式不支援：\n\n${fileList}\n\n支援的格式：JPG, JPEG, PNG, GIF, WEBP\n\n請轉換圖片格式後再試。`);
+        document.getElementById('product-image').value = '';
+        return false;
+    }
+    
+    // 檢查總大小
+    if (totalSize > MAX_TOTAL_SIZE) {
+        alert(`所有圖片總大小超過限制（${(MAX_TOTAL_SIZE / 1024 / 1024)}MB）。\n\n當前總大小：${(totalSize / 1024 / 1024).toFixed(2)}MB\n請減少圖片數量或壓縮圖片。`);
+        document.getElementById('product-image').value = '';
+        return false;
+    }
+    
+    // 檢查單個檔案大小
+    if (invalidSizeFiles.length > 0) {
+        const fileList = invalidSizeFiles.map(f => `  - ${f.name} (${f.size})`).join('\n');
+        alert(`以下圖片檔案超過大小限制（最大 ${invalidSizeFiles[0].maxSize}）：\n\n${fileList}\n\n請壓縮圖片後再試。`);
+        document.getElementById('product-image').value = '';
+        return false;
+    }
+    
+    return true;
+}
+
+function checkAdminAuth() {
+    const token = localStorage.getItem('admin_token');
+    if (!token) {
+        window.location.href = '/admin/login';
+    }
+}
+
+async function loadCategories() {
+    const token = localStorage.getItem('admin_token');
+    try {
+        const response = await fetch('/api/admin/categories', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        // API 返回格式為 { "categories": [...] }
+        categories = data.categories || data;
+        const select = document.getElementById('product-category');
+        select.innerHTML = '<option value="">請選擇分類</option>' +
+            categories.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('');
+    } catch (error) {
+        console.error('載入分類失敗:', error);
+    }
+}
+
+async function loadProducts() {
+    const token = localStorage.getItem('admin_token');
+    try {
+        const response = await fetch('/api/admin/products', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        const products = data.products || data;
+        
+        // 調試：輸出第一個商品的圖片資訊
+        if (products.length > 0) {
+            const firstProduct = products[0];
+            console.log('第一個商品圖片資訊:', {
+                id: firstProduct.id,
+                name: firstProduct.name,
+                image_url: firstProduct.image_url,
+                primary_image: firstProduct.primary_image,
+                images: firstProduct.images
+            });
+        }
+        
+        document.getElementById('products-table').innerHTML = products.map(product => {
+            // 確定圖片 URL：優先使用 image_url，否則使用 primary_image，最後使用第一張圖片
+            let imageUrl = product.image_url || product.primary_image;
+            if (!imageUrl && product.images && product.images.length > 0) {
+                // 優先使用主圖，否則使用第一張
+                const primaryImg = product.images.find(img => img.is_primary);
+                imageUrl = primaryImg ? primaryImg.image_url : product.images[0].image_url;
+            }
+            // 如果還是沒有，使用預設圖片
+            imageUrl = imageUrl || '/static/images/placeholder.png';
+            
+            return `
+            <tr>
+                <td>${product.id}</td>
+                <td><img src="${imageUrl}" style="width: 50px; height: 50px; object-fit: contain; background-color: #f8f9fa;" onerror="console.error('圖片載入失敗:', this.src); this.src='/static/images/placeholder.png';" alt="商品圖片"></td>
+                <td>${product.name}</td>
+                <td>${product.category?.name || product.category_name || '-'}</td>
+                <td>NT$ ${product.price_range?.display || product.price || '0'}</td>
+                <td>${product.stock}</td>
+                <td>
+                    <span class="badge ${product.is_active ? 'bg-success' : 'bg-secondary'}">
+                        ${product.is_active ? '啟用' : '停用'}
+                    </span>
+                </td>
+                <td>
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-sm btn-primary" onclick="editProduct(${product.id})">
+                            <i class="bi bi-pencil"></i> 編輯
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteProduct(${product.id})">
+                            <i class="bi bi-trash"></i> 刪除
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+        }).join('');
+    } catch (error) {
+        console.error('載入商品失敗:', error);
+    }
+}
+
+function showAddProductModal() {
+    document.getElementById('productModalTitle').textContent = '新增商品';
+    document.getElementById('product-form').reset();
+    document.getElementById('product-id').value = '';
+    document.getElementById('product-is-active').checked = true;
+    specGroups = [];
+    currentImages = [];
+    originalImages = [];
+    imagesToDelete = [];
+    variantData = {}; // 重置 SKU 數據，確保新增時價格和庫存為空白
+    document.getElementById('spec-groups-container').innerHTML = '';
+    document.getElementById('variants-container').innerHTML = '<p class="text-muted">請先設定規格群組，系統將自動生成SKU表格</p>';
+    document.getElementById('product-images-container').innerHTML = '';
+    new bootstrap.Modal(document.getElementById('productModal')).show();
+}
+
+async function editProduct(productId) {
+    const token = localStorage.getItem('admin_token');
+    try {
+        const response = await fetch(`/api/admin/products/${productId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const product = await response.json();
+        
+        document.getElementById('productModalTitle').textContent = '編輯商品';
+        document.getElementById('product-id').value = product.id;
+        document.getElementById('product-name').value = product.name;
+        document.getElementById('product-description').value = product.description || '';
+        // 確保分類 ID 轉換為字符串並正確設置
+        const categorySelect = document.getElementById('product-category');
+        if (product.category_id) {
+            categorySelect.value = String(product.category_id);
+        } else {
+            categorySelect.value = '';
+        }
+        document.getElementById('product-is-active').checked = product.is_active !== false;
+        
+        // 載入規格群組（轉換 API 格式為內部格式）
+        specGroups = (product.spec_groups || []).map(group => ({
+            name: group.name || '',
+            values: (group.values || []).map(v => v.value || v).filter(v => v)
+        }));
+        renderSpecGroups();
+        
+        // 載入圖片
+        currentImages = JSON.parse(JSON.stringify(product.images || [])); // 深拷貝
+        originalImages = JSON.parse(JSON.stringify(product.images || [])); // 保存原始狀態
+        imagesToDelete = []; // 重置刪除列表
+        renderImages();
+        
+        // 載入SKU（會在 renderSpecGroups 後自動生成）
+        setTimeout(() => {
+            if (product.variants && product.variants.length > 0) {
+                loadVariants(product.variants);
+            }
+        }, 100);
+        
+        new bootstrap.Modal(document.getElementById('productModal')).show();
+    } catch (error) {
+        console.error('載入商品失敗:', error);
+        alert('載入商品失敗');
+    }
+}
+
+async function saveProduct() {
+    const token = localStorage.getItem('admin_token');
+    const form = document.getElementById('product-form');
+    
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+    
+    // 驗證規格群組
+    if (specGroups.length === 0) {
+        alert('請至少新增一個規格群組');
+        return;
+    }
+    
+    // 驗證每個規格群組都有名稱和至少一個值
+    for (let i = 0; i < specGroups.length; i++) {
+        const group = specGroups[i];
+        if (!group.name || !group.name.trim()) {
+            alert(`規格群組 ${i + 1} 必須有名稱`);
+            return;
+        }
+        if (!group.values || group.values.length === 0 || group.values.every(v => !v || !v.trim())) {
+            alert(`規格群組「${group.name}」必須至少有一個規格值`);
+            return;
+        }
+    }
+    
+    // 驗證SKU
+    const variants = collectVariants();
+    if (variants.length === 0) {
+        alert('請設定商品SKU');
+        return;
+    }
+    
+    // 驗證每個SKU都有價格和庫存
+    for (let i = 0; i < variants.length; i++) {
+        const variant = variants[i];
+        if (variant.price === undefined || variant.price === null || variant.price < 0) {
+            alert('所有SKU都必須設定價格（可設為 0）');
+            return;
+        }
+        if (variant.stock === undefined || variant.stock === null || variant.stock < 0) {
+            alert('所有SKU都必須設定庫存（可設為 0）');
+            return;
+        }
+    }
+    
+    const productId = document.getElementById('product-id').value;
+    
+    // 獲取選擇的圖片文件
+    const imageInput = document.getElementById('product-image');
+    const newImageFiles = Array.from(imageInput.files);
+    
+    // 驗證檔案大小
+    if (newImageFiles.length > 0 && !validateImageFiles(newImageFiles)) {
+        return; // 驗證失敗，停止執行
+    }
+    
+    // 構建請求數據
+    const productData = {
+        name: document.getElementById('product-name').value.trim(),
+        description: document.getElementById('product-description').value.trim(),
+        category_id: parseInt(document.getElementById('product-category').value),
+        is_active: document.getElementById('product-is-active').checked,
+        images: [], // 圖片通過單獨的 API 上傳
+        spec_groups: specGroups.map((group, groupIndex) => ({
+            name: group.name,
+            sort_order: groupIndex + 1,
+            values: group.values.map((value, valueIndex) => ({
+                value: value,
+                sort_order: valueIndex
+            }))
+        })),
+        variants: variants
+    };
+    
+    try {
+        const url = productId ? `/api/admin/products/${productId}` : '/api/admin/products';
+        const method = productId ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(productData)
+        });
+        
+        if (response.ok) {
+            const savedProduct = await response.json();
+            // 獲取商品 ID：編輯時使用現有 ID，新增時從響應中獲取
+            const finalProductId = productId || savedProduct.id;
+            
+            // 如果有新圖片，上傳圖片
+            if (newImageFiles.length > 0 && finalProductId) {
+                try {
+                    await uploadProductImages(finalProductId, newImageFiles, token);
+                    // 重新載入商品資料以更新圖片列表（新增和編輯模式都需要）
+                    const productResponse = await fetch(`/api/admin/products/${finalProductId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (productResponse.ok) {
+                        const updatedProduct = await productResponse.json();
+                        currentImages = JSON.parse(JSON.stringify(updatedProduct.images || []));
+                        originalImages = JSON.parse(JSON.stringify(updatedProduct.images || []));
+                    }
+                } catch (uploadError) {
+                    console.error('圖片上傳失敗:', uploadError);
+                    const errorMessage = uploadError.message || '圖片上傳失敗';
+                    alert(`商品已儲存，但圖片上傳失敗：${errorMessage}\n\n請稍後重新上傳圖片。`);
+                }
+            }
+            
+            // 處理圖片變更（僅在編輯模式下，且不是新增模式）
+            if (productId && finalProductId) {
+                try {
+                    await applyImageChanges(finalProductId, token);
+                    // 重新載入商品資料以更新圖片列表
+                    const productResponse = await fetch(`/api/admin/products/${finalProductId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (productResponse.ok) {
+                        const updatedProduct = await productResponse.json();
+                        currentImages = JSON.parse(JSON.stringify(updatedProduct.images || []));
+                        originalImages = JSON.parse(JSON.stringify(updatedProduct.images || []));
+                    }
+                } catch (imageError) {
+                    console.error('圖片變更失敗:', imageError);
+                    alert('商品已儲存，但圖片變更失敗，請稍後重新編輯圖片');
+                }
+            }
+            
+            alert('儲存成功');
+            bootstrap.Modal.getInstance(document.getElementById('productModal')).hide();
+            // 清空圖片輸入
+            imageInput.value = '';
+            imagesToDelete = []; // 重置刪除列表
+            loadProducts();
+        } else {
+            const data = await response.json();
+            const errorMessage = formatValidationErrors(data);
+            alert(errorMessage || '儲存失敗');
+        }
+    } catch (error) {
+        console.error('儲存失敗:', error);
+        alert('儲存失敗');
+    }
+}
+
+async function deleteProduct(productId) {
+    if (!confirm('確定要刪除此商品嗎？')) return;
+    
+    const token = localStorage.getItem('admin_token');
+    try {
+        const response = await fetch(`/api/admin/products/${productId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.ok) {
+            alert('刪除成功');
+            loadProducts();
+        } else {
+            alert('刪除失敗');
+        }
+    } catch (error) {
+        console.error('刪除失敗:', error);
+    }
+}
+
+// ==================== 規格群組管理 ====================
+function addSpecGroup() {
+    specGroups.push({
+        name: '',
+        values: []
+    });
+    renderSpecGroups();
+}
+
+function removeSpecGroup(index) {
+    specGroups.splice(index, 1);
+    renderSpecGroups();
+}
+
+function addSpecValue(groupIndex) {
+    if (!specGroups[groupIndex].values) {
+        specGroups[groupIndex].values = [];
+    }
+    specGroups[groupIndex].values.push('');
+    renderSpecGroups();
+}
+
+function removeSpecValue(groupIndex, valueIndex) {
+    specGroups[groupIndex].values.splice(valueIndex, 1);
+    renderSpecGroups();
+}
+
+function updateSpecGroupName(groupIndex, value) {
+    specGroups[groupIndex].name = value;
+    generateVariantsTable();
+}
+
+function updateSpecValue(groupIndex, valueIndex, value) {
+    specGroups[groupIndex].values[valueIndex] = value;
+    generateVariantsTable();
+}
+
+function renderSpecGroups() {
+    const container = document.getElementById('spec-groups-container');
+    if (specGroups.length === 0) {
+        container.innerHTML = '<p class="text-muted">尚未新增規格群組</p>';
+        document.getElementById('variants-container').innerHTML = '<p class="text-muted">請先設定規格群組，系統將自動生成SKU表格</p>';
+        return;
+    }
+    
+    container.innerHTML = specGroups.map((group, groupIndex) => `
+        <div class="card mb-3" data-group-index="${groupIndex}">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <input type="text" class="form-control form-control-sm" 
+                           placeholder="規格群組名稱（如：尺寸、顏色）" 
+                           value="${group.name || ''}"
+                           onchange="updateSpecGroupName(${groupIndex}, this.value)">
+                    <button type="button" class="btn btn-sm btn-danger" onclick="removeSpecGroup(${groupIndex})">
+                        <i class="bi bi-trash"></i> 刪除群組
+                    </button>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">規格值：</label>
+                    <div id="spec-values-${groupIndex}" class="d-flex flex-wrap gap-2">
+                        ${(group.values || []).map((value, valueIndex) => `
+                            <div class="input-group input-group-sm" style="width: auto;">
+                                <input type="text" class="form-control" 
+                                       placeholder="規格值（如：S、M、L）" 
+                                       value="${value || ''}"
+                                       onchange="updateSpecValue(${groupIndex}, ${valueIndex}, this.value)">
+                                <button type="button" class="btn btn-outline-danger" 
+                                        onclick="removeSpecValue(${groupIndex}, ${valueIndex})">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-primary mt-2" 
+                            onclick="addSpecValue(${groupIndex})">
+                        <i class="bi bi-plus"></i> 新增規格值
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    generateVariantsTable();
+}
+
+// ==================== SKU管理 ====================
+function generateVariantsTable() {
+    const container = document.getElementById('variants-container');
+    
+    // 驗證規格群組
+    if (specGroups.length === 0 || specGroups.some(g => !g.name || !g.values || g.values.length === 0)) {
+        container.innerHTML = '<p class="text-muted">請先設定規格群組，系統將自動生成SKU表格</p>';
+        return;
+    }
+    
+    // 生成所有SKU組合
+    const combinations = generateCombinations(specGroups);
+    
+    if (combinations.length === 0) {
+        container.innerHTML = '<p class="text-muted">請為每個規格群組新增至少一個規格值</p>';
+        return;
+    }
+    
+    // 生成表格
+    const headers = specGroups.map(g => g.name).join('</th><th>');
+    const rows = combinations.map((combo, index) => {
+        const comboCells = combo.map(c => `<td>${c}</td>`).join('');
+        return `
+            <tr data-variant-index="${index}">
+                ${comboCells}
+                <td>
+                    <input type="number" class="form-control form-control-sm variant-price" 
+                           placeholder="價格" min="0" step="0.01" 
+                           data-index="${index}" 
+                           value="${getVariantValue(index, 'price')}">
+                </td>
+                <td>
+                    <input type="number" class="form-control form-control-sm variant-stock" 
+                           placeholder="庫存" min="0" 
+                           data-index="${index}" 
+                           value="${getVariantValue(index, 'stock')}">
+                </td>
+            </tr>
+        `;
+    }).join('');
+    
+    container.innerHTML = `
+        <div class="table-responsive">
+            <table class="table table-bordered table-sm">
+                <thead class="table-light">
+                    <tr>
+                        ${specGroups.map(g => `<th>${g.name}</th>`).join('')}
+                        <th>價格</th>
+                        <th>庫存</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+function generateCombinations(groups) {
+    if (groups.length === 0) return [];
+    if (groups.length === 1) {
+        return groups[0].values.filter(v => v.trim()).map(v => [v]);
+    }
+    
+    const firstGroup = groups[0];
+    const restGroups = groups.slice(1);
+    const restCombinations = generateCombinations(restGroups);
+    
+    const result = [];
+    firstGroup.values.filter(v => v.trim()).forEach(value => {
+        if (restCombinations.length === 0) {
+            result.push([value]);
+        } else {
+            restCombinations.forEach(combo => {
+                result.push([value, ...combo]);
+            });
+        }
+    });
+    
+    return result;
+}
+
+let variantData = {};
+
+function getVariantValue(index, field) {
+    return variantData[index]?.[field] || '';
+}
+
+function collectVariants() {
+    const variants = [];
+    const combinations = generateCombinations(specGroups);
+    
+    combinations.forEach((combo, index) => {
+        const priceInput = document.querySelector(`.variant-price[data-index="${index}"]`);
+        const stockInput = document.querySelector(`.variant-stock[data-index="${index}"]`);
+        
+        if (priceInput && stockInput) {
+            const price = parseFloat(priceInput.value) || 0;
+            const stock = parseInt(stockInput.value) || 0;
+            
+            const variant = {
+                spec_value_1: combo[0] || null,
+                spec_value_2: combo[1] || null,
+                price: price,
+                stock: stock
+            };
+            
+            variants.push(variant);
+        }
+    });
+    
+    return variants;
+}
+
+function loadVariants(variants) {
+    variantData = {};
+    const combinations = generateCombinations(specGroups);
+    
+    // 根據 spec_value_1 和 spec_value_2 匹配SKU
+    combinations.forEach((combo, index) => {
+        const matchingVariant = variants.find(v => 
+            v.spec_value_1 === combo[0] && 
+            (combo.length === 1 || v.spec_value_2 === combo[1])
+        );
+        
+        if (matchingVariant) {
+            variantData[index] = {
+                price: matchingVariant.price || 0,
+                stock: matchingVariant.stock || 0
+            };
+        }
+    });
+    
+    // 重新生成表格以應用數據
+    generateVariantsTable();
+}
+
+// ==================== 圖片管理 ====================
+function renderImages() {
+    const container = document.getElementById('product-images-container');
+    if (currentImages.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    // 按 display_order 排序
+    const sortedImages = [...currentImages].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+    
+    container.innerHTML = sortedImages.map((img, index) => {
+        const isPrimary = (img.display_order || 0) === 0;
+        return `
+        <div class="position-relative border rounded p-2" style="width: 120px;" data-image-id="${img.id}">
+            <img src="${img.image_url}" class="img-thumbnail d-block" style="width: 100px; height: 100px; object-fit: cover; margin: 0 auto;">
+            <div class="mt-2 text-center">
+                <small class="d-block text-muted mb-1">
+                    ${isPrimary ? '<span class="badge bg-primary">主圖</span>' : ''}
+                    <span class="badge bg-secondary">順序: ${img.display_order || 0}</span>
+                </small>
+                <div class="btn-group btn-group-sm w-100" role="group">
+                    <button type="button" class="btn btn-outline-info btn-sm" 
+                            onclick="moveImageOrder(${img.id}, -1)" 
+                            title="上移"
+                            ${index === 0 ? 'disabled' : ''}>
+                        <i class="bi bi-arrow-up"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-info btn-sm" 
+                            onclick="moveImageOrder(${img.id}, 1)" 
+                            title="下移"
+                            ${index === sortedImages.length - 1 ? 'disabled' : ''}>
+                        <i class="bi bi-arrow-down"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-danger btn-sm" 
+                            onclick="removeImage(${img.id})" 
+                            title="刪除">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        `;
+    }).join('');
+}
+
+function removeImage(imageId) {
+    if (!confirm('確定要刪除此圖片嗎？變更將在點擊儲存後生效。')) return;
+    
+    // 檢查是否為主圖（順序0）
+    const imageToDelete = currentImages.find(img => img.id === imageId);
+    const isPrimary = (imageToDelete?.display_order || 0) === 0;
+    
+    // 標記為刪除（如果是已存在的圖片）
+    if (imageToDelete && imageToDelete.id) {
+        if (!imagesToDelete.includes(imageId)) {
+            imagesToDelete.push(imageId);
+        }
+    }
+    
+    // 從本地陣列中移除
+    currentImages = currentImages.filter(img => img.id !== imageId);
+    
+    // 如果刪除的是主圖（順序0），且還有其他圖片，將第一張移到順序0
+    if (isPrimary && currentImages.length > 0) {
+        const sortedImages = [...currentImages].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+        if (sortedImages.length > 0) {
+            // 將第一張移到順序0
+            moveImageToOrder(sortedImages[0].id, 0);
+        }
+    } else {
+        renderImages();
+    }
+}
+
+function setPrimaryImage(imageId) {
+    // 將圖片移到順序0（主圖位置）
+    moveImageToOrder(imageId, 0);
+}
+
+function moveImageToOrder(imageId, targetOrder) {
+    // 只更新本地狀態，變更將在點擊儲存後生效
+    // 找到當前圖片
+    const currentImage = currentImages.find(img => img.id === imageId);
+    if (!currentImage) return;
+    
+    const currentOrder = currentImage.display_order || 0;
+    
+    // 如果目標順序就是當前順序，不需要變更
+    if (currentOrder === targetOrder) {
+        renderImages();
+        return;
+    }
+    
+    // 重新分配順序：將目標順序到當前順序之間的所有圖片順序調整
+    if (targetOrder < currentOrder) {
+        // 往前移：目標順序到當前順序之間的圖片順序+1
+        currentImages.forEach(img => {
+            const order = img.display_order || 0;
+            if (order >= targetOrder && order < currentOrder) {
+                img.display_order = order + 1;
+            }
+        });
+    } else {
+        // 往後移：當前順序到目標順序之間的圖片順序-1
+        currentImages.forEach(img => {
+            const order = img.display_order || 0;
+            if (order > currentOrder && order <= targetOrder) {
+                img.display_order = order - 1;
+            }
+        });
+    }
+    
+    // 設定目標圖片的順序
+    currentImage.display_order = targetOrder;
+    renderImages();
+}
+
+function moveImageOrder(imageId, direction) {
+    // 只更新本地狀態，變更將在點擊儲存後生效
+    // 按 display_order 排序
+    const sortedImages = [...currentImages].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+    
+    // 找到當前圖片的索引
+    const currentIndex = sortedImages.findIndex(img => img.id === imageId);
+    if (currentIndex === -1) return;
+    
+    // 計算目標索引
+    const targetIndex = currentIndex + direction;
+    if (targetIndex < 0 || targetIndex >= sortedImages.length) {
+        return; // 已到邊界
+    }
+    
+    // 計算目標順序
+    const targetOrder = sortedImages[targetIndex].display_order || 0;
+    
+    // 使用 moveImageToOrder 來移動
+    moveImageToOrder(imageId, targetOrder);
+}
+
+async function applyImageChanges(productId, token) {
+    // 1. 刪除標記的圖片
+    for (const imageId of imagesToDelete) {
+        try {
+            const response = await fetch(`/api/admin/products/${productId}/images/${imageId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!response.ok) {
+                const data = await response.json();
+                console.error(`刪除圖片 ${imageId} 失敗:`, data);
+            }
+        } catch (error) {
+            console.error(`刪除圖片 ${imageId} 時發生錯誤:`, error);
+        }
+    }
+    
+    // 2. 更新圖片順序和主圖狀態（順序0就是主圖）
+    // 按 display_order 排序後比較
+    const sortedCurrent = [...currentImages].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+    const sortedOriginal = [...originalImages].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+    
+    // 檢查順序是否有變更
+    let orderChanged = false;
+    if (sortedCurrent.length !== sortedOriginal.length) {
+        orderChanged = true;
+    } else {
+        for (let i = 0; i < sortedCurrent.length; i++) {
+            if (sortedCurrent[i].id !== sortedOriginal[i].id) {
+                orderChanged = true;
+                break;
+            }
+        }
+    }
+    
+    // 如果順序有變更，更新所有圖片的順序，並設定順序0為主圖
+    if (orderChanged) {
+        const updatePromises = sortedCurrent.map((img, index) => {
+            const originalImg = sortedOriginal.find(o => o.id === img.id);
+            const isPrimary = index === 0; // 順序0就是主圖
+            
+            // 檢查是否需要更新（順序變更或主圖狀態變更）
+            const orderChanged = originalImg && (originalImg.display_order || 0) !== index;
+            const primaryChanged = originalImg && (originalImg.is_primary || false) !== isPrimary;
+            
+            if (orderChanged || primaryChanged) {
+                return fetch(`/api/admin/products/${productId}/images/${img.id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        display_order: index,
+                        is_primary: isPrimary
+                    })
+                });
+            }
+            return Promise.resolve({ ok: true });
+        });
+        
+        try {
+            const responses = await Promise.all(updatePromises);
+            const allOk = responses.every(r => r.ok);
+            if (!allOk) {
+                console.error('部分圖片順序更新失敗');
+            }
+        } catch (error) {
+            console.error('更新圖片順序時發生錯誤:', error);
+        }
+    }
+}
+
+async function uploadProductImages(productId, imageFiles, token) {
+    // 檢查是否已經有主圖（順序0的圖片）
+    const hasPrimaryImage = currentImages.some(img => (img.display_order || 0) === 0);
+    
+    // 計算當前的最大 display_order，用於設定新圖片的順序
+    const maxDisplayOrder = currentImages.length > 0 
+        ? Math.max(...currentImages.map(img => img.display_order || 0))
+        : -1;
+    
+    // 上傳每張圖片
+    for (let i = 0; i < imageFiles.length; i++) {
+        const file = imageFiles[i];
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        // 第一張圖片且沒有主圖時，設為順序0（主圖），否則接續現有順序
+        const displayOrder = (i === 0 && !hasPrimaryImage) ? 0 : (maxDisplayOrder + i + 1);
+        const isPrimary = displayOrder === 0; // 順序0就是主圖
+        
+        formData.append('is_primary', isPrimary ? 'true' : 'false');
+        formData.append('display_order', String(displayOrder));
+        
+        try {
+            const response = await fetch(`/api/admin/products/${productId}/images`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                body: formData
+            });
+            
+            if (!response.ok) {
+                let errorMessage = `上傳圖片 ${i + 1} 失敗`;
+                
+                // 處理 413 錯誤（檔案太大）
+                if (response.status === 413) {
+                    errorMessage = `圖片檔案太大（超過 20MB）。請壓縮圖片後再試，或選擇較小的圖片檔案。`;
+                    console.error(`上傳圖片 ${i + 1} 失敗: 檔案太大 (413)`);
+                    throw new Error(errorMessage);
+                }
+                
+                // 嘗試解析 JSON 錯誤訊息
+                try {
+                    const errorData = await response.json();
+                    if (errorData.detail) {
+                        errorMessage = errorData.detail;
+                    }
+                    console.error(`上傳圖片 ${i + 1} 失敗:`, errorData);
+                } catch (e) {
+                    // 如果不是 JSON，嘗試讀取文字內容
+                    try {
+                        const text = await response.text();
+                        console.error(`上傳圖片 ${i + 1} 失敗，回應內容:`, text);
+                        if (text.includes('413') || text.includes('Request Entity Too Large')) {
+                            errorMessage = `圖片檔案太大。請壓縮圖片後再試，或選擇較小的圖片檔案。`;
+                        }
+                    } catch (textError) {
+                        console.error(`上傳圖片 ${i + 1} 失敗，無法解析錯誤訊息:`, textError);
+                        errorMessage = `上傳失敗（HTTP ${response.status}）。請檢查檔案大小和格式。`;
+                    }
+                }
+                throw new Error(errorMessage);
+            }
+            
+            // 如果成功上傳且設為主圖，更新本地狀態中其他圖片的主圖狀態
+            if (isPrimary) {
+                const uploadedImage = await response.json();
+                if (uploadedImage.image && uploadedImage.image.is_primary) {
+                    // 更新 currentImages 中其他圖片的主圖狀態
+                    currentImages.forEach(img => {
+                        if (img.id !== uploadedImage.image.id) {
+                            img.is_primary = false;
+                        }
+                    });
+                }
+            }
+        } catch (error) {
+            console.error(`上傳圖片 ${i + 1} 時發生錯誤:`, error);
+            throw error;
+        }
+    }
+}
+
+// ==================== 錯誤處理 ====================
+function formatValidationErrors(errorData) {
+    // 如果 detail 是字串，直接返回
+    if (typeof errorData.detail === 'string') {
+        return errorData.detail;
+    }
+    
+    // 如果 detail 是陣列（Pydantic 驗證錯誤）
+    if (Array.isArray(errorData.detail)) {
+        const errors = errorData.detail.map(err => {
+            const fieldPath = err.loc || [];
+            const fieldName = getFieldName(fieldPath);
+            const message = getErrorMessage(err.type, fieldName, err.ctx);
+            return message;
+        });
+        
+        return '儲存失敗，請檢查以下錯誤：\n\n' + errors.join('\n');
+    }
+    
+    return '儲存失敗';
+}
+
+function getFieldName(loc) {
+    // loc 格式: ["body", "variants", 9, "price"]
+    if (loc.length < 2) return '欄位';
+    
+    const field = loc[loc.length - 1]; // 最後一個是欄位名稱
+    
+    // 欄位名稱對照表
+    const fieldNames = {
+        'name': '商品名稱',
+        'description': '商品描述',
+        'category_id': '分類',
+        'is_active': '狀態',
+        'price': '價格',
+        'stock': '庫存',
+        'spec_value_1': '規格值 1',
+        'spec_value_2': '規格值 2',
+        'variants': 'SKU',
+        'spec_groups': '規格群組',
+        'images': '圖片'
+    };
+    
+    // 如果是SKU中的欄位
+    const variantsIndex = loc.indexOf('variants');
+    if (variantsIndex !== -1 && variantsIndex + 1 < loc.length) {
+        const variantIndex = loc[variantsIndex + 1]; // SKU索引
+        if (typeof variantIndex === 'number') {
+            const variantNumber = variantIndex + 1; // 轉換為 1-based（第幾個SKU）
+            return `SKU ${variantNumber} 的 ${fieldNames[field] || field}`;
+        }
+    }
+    
+    return fieldNames[field] || field;
+}
+
+function getErrorMessage(errorType, fieldName, ctx) {
+    const errorMessages = {
+        'greater_than': `「${fieldName}」必須大於 ${ctx?.gt || 0}`,
+        'greater_than_equal': `「${fieldName}」必須大於或等於 ${ctx?.ge || 0}`,
+        'less_than': `「${fieldName}」必須小於 ${ctx?.lt || 0}`,
+        'less_than_equal': `「${fieldName}」必須小於或等於 ${ctx?.le || 0}`,
+        'missing': `「${fieldName}」為必填欄位`,
+        'value_error': `「${fieldName}」的值不正確`,
+        'type_error': `「${fieldName}」的類型不正確`,
+        'string_too_short': `「${fieldName}」長度不足（最少 ${ctx?.min_length || 0} 個字元）`,
+        'string_too_long': `「${fieldName}」長度過長（最多 ${ctx?.max_length || 0} 個字元）`,
+        'value_error.number.not_gt': `「${fieldName}」必須大於 ${ctx?.gt || 0}`,
+        'value_error.number.not_ge': `「${fieldName}」必須大於或等於 ${ctx?.ge || 0}`,
+    };
+    
+    return errorMessages[errorType] || `「${fieldName}」驗證失敗`;
+}
+</script>
+{% endblock %}

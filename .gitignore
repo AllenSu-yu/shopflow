@@ -1,1 +1,25 @@
 開發筆記
+instance/
+*.db
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Deployment - 實際部署的設定檔（保留範本檔案）
+deployment/nginx/*.conf.local
+deployment/nginx/*.conf.production
+deployment/nginx/*.conf.prod
+.env.production
+deployment/nginx/README.md
+deployment/nginx/shopflow.conf.example
+check_app_logs.sh

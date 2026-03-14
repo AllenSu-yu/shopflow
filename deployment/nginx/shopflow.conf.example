@@ -1,0 +1,47 @@
+# 這是實際部署設定檔的範例
+# 複製此檔案並重新命名為 shopflow.conf.production（或 shopflow.conf.local）
+# 然後修改 server_name 為您的實際網域
+# 
+# 注意：實際部署的設定檔（*.conf.production, *.conf.local）不會被加入版控
+# 只有範本檔案（shopflow.conf）會被加入版控
+
+server {
+    listen 80;
+    # 修改這裡為您的實際網域
+    server_name shopflow.example.com www.shopflow.example.com;
+
+    # 記錄日誌
+    access_log /var/log/nginx/shopflow_access.log;
+    error_log /var/log/nginx/shopflow_error.log;
+
+    # 設定最大請求體大小（用於檔案上傳）
+    # 預設是 1MB，設定為 20MB 以支援圖片上傳
+    client_max_body_size 20M;
+
+    # 反向代理到應用程式（Docker 容器運行在 port 5000）
+    location / {
+        proxy_pass http://localhost:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # WebSocket 支援（如果需要）
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        
+        # 超時設定
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # 靜態檔案（如果使用本地檔案，而非 S3）
+    # 注意：如果使用 S3，可以移除此區塊或設定為 S3 URL
+    location /static/ {
+        alias /app/static/;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+}

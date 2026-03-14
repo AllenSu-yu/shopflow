@@ -1,0 +1,178 @@
+{% extends "customer/base.html" %}
+
+{% block title %}結帳 - ShopFlow{% endblock %}
+
+{% block customer_content %}
+<div class="container my-5">
+    <h2 class="mb-4">結帳</h2>
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>訂購資訊</h5>
+                </div>
+                <div class="card-body">
+                    <form id="checkout-form">
+                        <div class="mb-3">
+                            <label for="recipient_name" class="form-label">收件人姓名 *</label>
+                            <input type="text" class="form-control" id="recipient_name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="recipient_phone" class="form-label">收件人電話 *</label>
+                            <input type="tel" class="form-control" id="recipient_phone" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="recipient_address" class="form-label">收件地址 *</label>
+                            <textarea class="form-control" id="recipient_address" rows="3" required></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="note" class="form-label">備註</label>
+                            <textarea class="form-control" id="note" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5>訂單摘要</h5>
+                </div>
+                <div class="card-body" id="order-summary">
+                    <!-- 訂單摘要將由 JavaScript 動態載入 -->
+                </div>
+                <div class="card-footer">
+                    <button class="btn btn-primary btn-lg w-100" onclick="submitOrder()">確認訂單</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let cartData = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadCart();
+});
+
+async function loadCart() {
+    const token = localStorage.getItem('token');
+    if (!token) {
+        window.location.href = '/login';
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/cart', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            // 處理認證錯誤（401）
+            if (response.status === 401) {
+                if (typeof handleAuthError === 'function') {
+                    handleAuthError(response, '請先登入以進行結帳');
+                } else {
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    if (confirm('您的登入已過期，請重新登入\n\n是否前往登入頁面？')) {
+                        window.location.href = '/login';
+                    }
+                }
+            } else {
+                alert('載入購物車失敗');
+            }
+            return;
+        }
+        
+        cartData = await response.json();
+        
+        if (cartData.items.length === 0) {
+            alert('購物車是空的');
+            window.location.href = '/cart';
+            return;
+        }
+        
+        const total = cartData.items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+        document.getElementById('order-summary').innerHTML = `
+            ${cartData.items.map(item => `
+                <div class="d-flex justify-content-between mb-2">
+                    <span>${item.product.name} x ${item.quantity}</span>
+                    <span>NT$ ${item.product.price * item.quantity}</span>
+                </div>
+            `).join('')}
+            <hr>
+            <div class="d-flex justify-content-between">
+                <strong>總計：</strong>
+                <strong class="text-danger">NT$ ${total}</strong>
+            </div>
+        `;
+    } catch (error) {
+        console.error('載入購物車失敗:', error);
+    }
+}
+
+async function submitOrder() {
+    const token = localStorage.getItem('token');
+    const form = document.getElementById('checkout-form');
+    
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+    
+    const orderData = {
+        recipient_name: document.getElementById('recipient_name').value,
+        recipient_phone: document.getElementById('recipient_phone').value,
+        recipient_address: document.getElementById('recipient_address').value,
+        note: document.getElementById('note').value,
+        items: cartData.items.map(item => ({
+            product_id: item.product.id,
+            quantity: item.quantity
+        }))
+    };
+    
+    try {
+        const response = await fetch('/api/orders', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(orderData)
+        });
+        
+        if (response.ok) {
+            const order = await response.json();
+            alert('訂單建立成功！');
+            window.location.href = `/orders/${order.id}`;
+        } else {
+            // 處理認證錯誤（401）
+            if (response.status === 401) {
+                const data = await response.json().catch(() => ({}));
+                if (typeof handleAuthError === 'function') {
+                    handleAuthError(response, data.detail || '請先登入');
+                } else {
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    if (confirm('您的登入已過期，請重新登入\n\n是否前往登入頁面？')) {
+                        window.location.href = '/login';
+                    }
+                }
+            } else {
+                const data = await response.json();
+                alert(data.detail || '建立訂單失敗');
+            }
+        }
+    } catch (error) {
+        console.error('建立訂單失敗:', error);
+        alert('建立訂單失敗');
+    }
+}
+</script>
+{% endblock %}

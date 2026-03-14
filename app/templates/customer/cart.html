@@ -1,0 +1,234 @@
+{% extends "customer/base.html" %}
+
+{% block title %}購物車 - ShopFlow{% endblock %}
+
+{% block customer_content %}
+<div class="container my-5">
+    <h2 class="mb-4">購物車</h2>
+    <div id="cart-items">
+        <!-- 購物車項目將由 JavaScript 動態載入 -->
+    </div>
+    <div class="row mt-4">
+        <div class="col-md-8"></div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5>總計：<span id="total-price" class="text-danger">NT$ 0</span></h5>
+                    <a href="/checkout" id="checkout-btn" class="btn btn-primary btn-lg w-100" disabled>前往結帳</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadCart();
+});
+
+async function loadCart() {
+    const token = localStorage.getItem('token');
+    if (!token) {
+        document.getElementById('cart-items').innerHTML = '<p class="text-center">請先登入</p>';
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/cart', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            // 處理認證錯誤（401）
+            if (response.status === 401) {
+                if (typeof handleAuthError === 'function') {
+                    handleAuthError(response, '請先登入以查看購物車');
+                } else {
+                    // 如果 handleAuthError 函數不存在，使用備用處理
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    if (confirm('您的登入已過期，請重新登入\n\n是否前往登入頁面？')) {
+                        window.location.href = '/login';
+                    }
+                }
+            } else {
+                document.getElementById('cart-items').innerHTML = '<p class="text-center">載入購物車失敗</p>';
+            }
+            return;
+        }
+        
+        const cart = await response.json();
+        
+        if (cart.items.length === 0) {
+            document.getElementById('cart-items').innerHTML = '<p class="text-center">購物車是空的</p>';
+            document.getElementById('total-price').textContent = 'NT$ 0';
+            // 禁用前往結帳按鈕
+            const checkoutBtn = document.getElementById('checkout-btn');
+            if (checkoutBtn) {
+                checkoutBtn.classList.add('disabled');
+                checkoutBtn.style.pointerEvents = 'none';
+                checkoutBtn.style.opacity = '0.6';
+                checkoutBtn.href = '#';
+            }
+            // 直接更新購物車 badge 數量為 0（不需要再調用 API）
+            const cartCount = document.getElementById('cart-count');
+            if (cartCount) {
+                cartCount.textContent = '0';
+            }
+            return;
+        }
+        
+        document.getElementById('cart-items').innerHTML = `
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>商品</th>
+                        <th>單價</th>
+                        <th>數量</th>
+                        <th>小計</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${cart.items.map(item => `
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <img src="${item.primary_image || '/static/images/placeholder.png'}" style="width: 50px; height: 50px; object-fit: cover;" class="me-3">
+                                    <div>
+                                        <div>${item.product_name}</div>
+                                        ${item.variant_spec ? `<small class="text-muted">規格：${item.variant_spec}</small>` : ''}
+                                    </div>
+                                </div>
+                            </td>
+                            <td>NT$ ${item.product_price}</td>
+                            <td>
+                                <input type="number" class="form-control" style="width: 80px;" 
+                                    value="${item.quantity}" min="1" 
+                                    onchange="updateCartItem(${item.id}, this.value)">
+                            </td>
+                            <td>NT$ ${item.subtotal}</td>
+                            <td>
+                                <button class="btn btn-danger btn-sm" onclick="removeCartItem(${item.id})">刪除</button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+        
+        document.getElementById('total-price').textContent = `NT$ ${cart.total}`;
+        
+        // 啟用前往結帳按鈕
+        const checkoutBtn = document.getElementById('checkout-btn');
+        if (checkoutBtn) {
+            checkoutBtn.classList.remove('disabled');
+            checkoutBtn.style.pointerEvents = 'auto';
+            checkoutBtn.style.opacity = '1';
+            checkoutBtn.href = '/checkout';
+        }
+        
+        // 直接更新購物車 badge 數量（不需要再調用 API）
+        const cartCount = document.getElementById('cart-count');
+        if (cartCount) {
+            const totalItems = cart.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+            cartCount.textContent = totalItems;
+        }
+    } catch (error) {
+        console.error('載入購物車失敗:', error);
+    }
+}
+
+async function updateCartItem(itemId, quantity) {
+    const token = localStorage.getItem('token');
+    try {
+        const response = await fetch(`/api/cart/items/${itemId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ quantity: parseInt(quantity) })
+        });
+        
+        if (response.ok) {
+            // 先更新購物車數量，再重新載入購物車內容
+            if (typeof updateCartCount === 'function') {
+                await updateCartCount();
+            } else {
+                // 如果函數還沒載入，等待一下再試
+                setTimeout(async () => {
+                    if (typeof updateCartCount === 'function') {
+                        await updateCartCount();
+                    }
+                }, 100);
+            }
+            loadCart();
+        } else {
+            // 處理認證錯誤（401）
+            if (response.status === 401) {
+                if (typeof handleAuthError === 'function') {
+                    handleAuthError(response, '請先登入');
+                } else {
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    if (confirm('您的登入已過期，請重新登入\n\n是否前往登入頁面？')) {
+                        window.location.href = '/login';
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        console.error('更新購物車失敗:', error);
+    }
+}
+
+async function removeCartItem(itemId) {
+    const token = localStorage.getItem('token');
+    if (!confirm('確定要刪除此商品嗎？')) return;
+    
+    try {
+        const response = await fetch(`/api/cart/items/${itemId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (response.ok) {
+            // 先更新購物車數量，再重新載入購物車內容
+            if (typeof updateCartCount === 'function') {
+                await updateCartCount();
+            } else {
+                // 如果函數還沒載入，等待一下再試
+                setTimeout(async () => {
+                    if (typeof updateCartCount === 'function') {
+                        await updateCartCount();
+                    }
+                }, 100);
+            }
+            loadCart();
+        } else {
+            // 處理認證錯誤（401）
+            if (response.status === 401) {
+                if (typeof handleAuthError === 'function') {
+                    handleAuthError(response, '請先登入');
+                } else {
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    if (confirm('您的登入已過期，請重新登入\n\n是否前往登入頁面？')) {
+                        window.location.href = '/login';
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        console.error('刪除購物車項目失敗:', error);
+    }
+}
+</script>
+{% endblock %}

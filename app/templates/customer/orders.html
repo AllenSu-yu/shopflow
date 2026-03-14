@@ -1,0 +1,90 @@
+{% extends "customer/base.html" %}
+
+{% block title %}我的訂單 - ShopFlow{% endblock %}
+
+{% block customer_content %}
+<div class="container my-5">
+    <h2 class="mb-4">我的訂單</h2>
+    <div id="orders-list">
+        <!-- 訂單列表將由 JavaScript 動態載入 -->
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadOrders();
+});
+
+async function loadOrders() {
+    const token = localStorage.getItem('token');
+    if (!token) {
+        window.location.href = '/login';
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/orders', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            // 處理認證錯誤（401）
+            if (response.status === 401) {
+                if (typeof handleAuthError === 'function') {
+                    handleAuthError(response, '請先登入以查看訂單');
+                } else {
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    if (confirm('您的登入已過期，請重新登入\n\n是否前往登入頁面？')) {
+                        window.location.href = '/login';
+                    }
+                }
+            } else {
+                document.getElementById('orders-list').innerHTML = '<p class="text-center">載入訂單失敗</p>';
+            }
+            return;
+        }
+        
+        const orders = await response.json();
+        
+        if (orders.length === 0) {
+            document.getElementById('orders-list').innerHTML = '<p class="text-center">還沒有訂單</p>';
+            return;
+        }
+        
+        document.getElementById('orders-list').innerHTML = `
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>訂單編號</th>
+                            <th>訂購日期</th>
+                            <th>總金額</th>
+                            <th>狀態</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${orders.map(order => `
+                            <tr>
+                                <td>#${order.id}</td>
+                                <td>${new Date(order.created_at).toLocaleString('zh-TW')}</td>
+                                <td>NT$ ${order.total_amount}</td>
+                                <td><span class="badge bg-info">${order.status}</span></td>
+                                <td><a href="/orders/${order.id}" class="btn btn-sm btn-primary">查看詳情</a></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    } catch (error) {
+        console.error('載入訂單失敗:', error);
+    }
+}
+</script>
+{% endblock %}

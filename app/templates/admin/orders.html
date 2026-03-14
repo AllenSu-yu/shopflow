@@ -1,0 +1,110 @@
+{% extends "admin/base.html" %}
+
+{% block title %}訂單管理 - ShopFlow{% endblock %}
+
+{% block page_title %}訂單管理{% endblock %}
+
+{% block admin_content %}
+<div class="mb-4">
+    <h4 class="mb-0">訂單列表</h4>
+    <small class="text-muted">管理所有訂單資訊</small>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped">
+                <thead class="table-dark">
+                    <tr>
+                        <th>訂單編號</th>
+                        <th>客戶</th>
+                        <th>總金額</th>
+                        <th>狀態</th>
+                        <th>訂購日期</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="orders-table">
+                    <!-- 訂單列表將由 JavaScript 動態載入 -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    checkAdminAuth();
+    loadOrders();
+});
+
+function checkAdminAuth() {
+    const token = localStorage.getItem('admin_token');
+    if (!token) {
+        window.location.href = '/admin/login';
+    }
+}
+
+async function loadOrders() {
+    const token = localStorage.getItem('admin_token');
+    try {
+        const response = await fetch('/api/admin/orders', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const orders = await response.json();
+        
+        document.getElementById('orders-table').innerHTML = orders.map(order => `
+            <tr>
+                <td>#${order.id}</td>
+                <td>${order.customer?.name || '-'}</td>
+                <td>NT$ ${order.total_amount}</td>
+                <td>
+                    <select class="form-select form-select-sm" onchange="updateOrderStatus(${order.id}, this.value)">
+                        <option value="pending" ${order.status === 'pending' ? 'selected' : ''}>待處理</option>
+                        <option value="processing" ${order.status === 'processing' ? 'selected' : ''}>處理中</option>
+                        <option value="shipped" ${order.status === 'shipped' ? 'selected' : ''}>已出貨</option>
+                        <option value="completed" ${order.status === 'completed' ? 'selected' : ''}>已完成</option>
+                        <option value="cancelled" ${order.status === 'cancelled' ? 'selected' : ''}>已取消</option>
+                    </select>
+                </td>
+                <td>${new Date(order.created_at).toLocaleString('zh-TW')}</td>
+                <td>
+                    <button class="btn btn-sm btn-primary" onclick="viewOrder(${order.id})">查看詳情</button>
+                </td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        console.error('載入訂單失敗:', error);
+    }
+}
+
+async function updateOrderStatus(orderId, status) {
+    const token = localStorage.getItem('admin_token');
+    try {
+        const response = await fetch(`/api/admin/orders/${orderId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ status })
+        });
+        
+        if (response.ok) {
+            alert('更新成功');
+            loadOrders();
+        } else {
+            alert('更新失敗');
+        }
+    } catch (error) {
+        console.error('更新失敗:', error);
+    }
+}
+
+function viewOrder(orderId) {
+    window.location.href = `/admin/orders/${orderId}`;
+}
+</script>
+{% endblock %}
