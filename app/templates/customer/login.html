@@ -1,0 +1,208 @@
+{% extends "customer/base.html" %}
+
+{% block title %}登入 - ShopFlow{% endblock %}
+
+{% block customer_content %}
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-md-5">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="text-center">會員登入</h4>
+                </div>
+                <div class="card-body">
+                    <div id="error-alert" class="alert alert-danger d-none" role="alert"></div>
+                    <form id="login-form">
+                        <div class="mb-3">
+                            <label for="email" class="form-label">電子郵件</label>
+                            <input type="email" class="form-control" id="email" required>
+                            <div class="invalid-feedback"></div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label">密碼</label>
+                            <input type="password" class="form-control" id="password" required>
+                            <div class="invalid-feedback"></div>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">登入</button>
+                    </form>
+                    <div class="text-center mt-3">
+                        <a href="/register">還沒有帳號？立即註冊</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 錯誤訊息中文化映射
+const errorMessages = {
+    'string_too_short': (ctx) => {
+        const field = ctx.field || '欄位';
+        return `${field}至少需要 ${ctx.min_length} 個字元`;
+    },
+    'string_too_long': (ctx) => {
+        const field = ctx.field || '欄位';
+        return `${field}不能超過 ${ctx.max_length} 個字元`;
+    },
+    'value_error.email': () => '請輸入有效的電子郵件格式',
+    'type_error.email': () => '請輸入有效的電子郵件格式',
+    'value_error.missing': (ctx) => {
+        const field = ctx.field || '欄位';
+        return `請輸入${field}`;
+    },
+    'value_error.any_str.min_length': (ctx) => {
+        const field = ctx.field || '欄位';
+        return `${field}至少需要 ${ctx.limit_value} 個字元`;
+    },
+    'value_error.any_str.max_length': (ctx) => {
+        const field = ctx.field || '欄位';
+        return `${field}不能超過 ${ctx.limit_value} 個字元`;
+    }
+};
+
+// 欄位名稱映射
+const fieldNames = {
+    'email': '電子郵件',
+    'password': '密碼',
+    'name': '姓名',
+    'phone': '電話',
+    'address': '地址'
+};
+
+// 將錯誤轉換為中文訊息
+function translateError(error) {
+    const fieldPath = error.loc || [];
+    const field = fieldPath[fieldPath.length - 1]; // 取得最後一個欄位名稱
+    const fieldName = fieldNames[field] || field;
+    
+    // 建立上下文，包含欄位名稱
+    const ctx = { ...error.ctx, field: fieldName };
+    
+    // 根據錯誤類型取得對應的中文訊息
+    const errorType = error.type;
+    if (errorMessages[errorType]) {
+        return errorMessages[errorType](ctx);
+    }
+    
+    // 如果沒有對應的翻譯，嘗試從 msg 中提取資訊
+    if (error.msg && error.ctx) {
+        if (error.ctx.min_length) {
+            return `${fieldName}至少需要 ${error.ctx.min_length} 個字元`;
+        }
+        if (error.ctx.max_length) {
+            return `${fieldName}不能超過 ${error.ctx.max_length} 個字元`;
+        }
+    }
+    
+    // 預設訊息
+    return error.msg || `${fieldName}驗證失敗`;
+}
+
+// 清除錯誤訊息
+function clearErrors() {
+    const errorAlert = document.getElementById('error-alert');
+    errorAlert.classList.add('d-none');
+    errorAlert.textContent = '';
+    
+    // 清除表單欄位的錯誤狀態
+    document.getElementById('email').classList.remove('is-invalid');
+    document.getElementById('password').classList.remove('is-invalid');
+    document.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
+}
+
+// 顯示錯誤訊息
+function showErrors(errors) {
+    clearErrors();
+    
+    if (!errors || errors.length === 0) {
+        return;
+    }
+    
+    const errorAlert = document.getElementById('error-alert');
+    const errorMessages = errors.map(error => translateError(error));
+    
+    // 顯示主要錯誤訊息
+    errorAlert.textContent = errorMessages[0];
+    errorAlert.classList.remove('d-none');
+    
+    // 為每個欄位顯示對應的錯誤訊息
+    errors.forEach(error => {
+        const fieldPath = error.loc || [];
+        const field = fieldPath[fieldPath.length - 1];
+        const fieldElement = document.getElementById(field);
+        
+        if (fieldElement) {
+            fieldElement.classList.add('is-invalid');
+            const feedbackElement = fieldElement.nextElementSibling;
+            if (feedbackElement && feedbackElement.classList.contains('invalid-feedback')) {
+                feedbackElement.textContent = translateError(error);
+            }
+        }
+    });
+}
+
+document.getElementById('login-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    clearErrors();
+    
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    
+    try {
+        const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email, password })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            localStorage.setItem('token', data.access_token);
+            // API 返回的是 customer，統一存為 user
+            const userData = data.customer || data.user;
+            localStorage.setItem('user', JSON.stringify(userData));
+            
+            // 如果 updateNavAuthStatus 函數存在（在 base.html 中定義），立即更新導航欄
+            if (typeof updateNavAuthStatus === 'function') {
+                updateNavAuthStatus();
+            }
+            
+            // 重定向到首頁
+            window.location.href = '/';
+        } else {
+            const data = await response.json();
+            
+            // 處理驗證錯誤（422 狀態碼）
+            if (response.status === 422 && Array.isArray(data.detail)) {
+                showErrors(data.detail);
+            } else {
+                // 處理其他錯誤（如認證失敗）
+                const errorAlert = document.getElementById('error-alert');
+                errorAlert.textContent = data.detail || '登入失敗，請檢查您的帳號密碼';
+                errorAlert.classList.remove('d-none');
+            }
+        }
+    } catch (error) {
+        console.error('登入失敗:', error);
+        const errorAlert = document.getElementById('error-alert');
+        errorAlert.textContent = '登入失敗，請稍後再試';
+        errorAlert.classList.remove('d-none');
+    }
+});
+
+// 當使用者開始輸入時，清除錯誤訊息
+document.getElementById('email').addEventListener('input', function() {
+    this.classList.remove('is-invalid');
+});
+
+document.getElementById('password').addEventListener('input', function() {
+    this.classList.remove('is-invalid');
+});
+</script>
+{% endblock %}

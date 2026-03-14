@@ -1,0 +1,535 @@
+{% extends "admin/base.html" %}
+
+{% block title %}商店與首頁設定 - ShopFlow{% endblock %}
+
+{% block page_title %}商店與首頁設定{% endblock %}
+
+{% block admin_content %}
+<!-- 輪播圖管理 -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-primary text-white">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="mb-0"><i class="bi bi-images"></i> 輪播圖管理</h5>
+                <small>管理首頁輪播圖</small>
+            </div>
+            <button class="btn btn-light btn-sm" onclick="showAddCarouselModal()">
+                <i class="bi bi-plus-circle"></i> 新增輪播圖
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div id="carousels-container">
+            <!-- 輪播圖列表將由 JavaScript 動態載入 -->
+            <div class="text-center text-muted py-4">
+                <i class="bi bi-hourglass-split"></i> 載入中...
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 商店資訊設定 -->
+<div class="card shadow-sm">
+    <div class="card-header bg-success text-white">
+        <h5 class="mb-0"><i class="bi bi-shop"></i> 商店資訊設定</h5>
+        <small>設定商店基本資訊和社群媒體連結</small>
+    </div>
+    <div class="card-body">
+        <form id="store-info-form">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="store-name" class="form-label">商店名稱 *</label>
+                    <input type="text" class="form-control" id="store-name" required maxlength="100">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="contact-email" class="form-label">聯絡信箱</label>
+                    <input type="email" class="form-control" id="contact-email" maxlength="100">
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="store-description" class="form-label">商店描述</label>
+                <textarea class="form-control" id="store-description" rows="3"></textarea>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="contact-phone" class="form-label">聯絡電話</label>
+                    <input type="text" class="form-control" id="contact-phone" maxlength="20">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="business-hours" class="form-label">營業時間</label>
+                    <input type="text" class="form-control" id="business-hours" maxlength="200" placeholder="例：週一至週五 09:00-18:00">
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="address" class="form-label">地址</label>
+                <input type="text" class="form-control" id="address" maxlength="255">
+            </div>
+            
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label for="facebook-url" class="form-label">Facebook 連結</label>
+                    <input type="url" class="form-control" id="facebook-url" maxlength="255" placeholder="https://www.facebook.com/...">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="instagram-url" class="form-label">Instagram 連結</label>
+                    <input type="url" class="form-control" id="instagram-url" maxlength="255" placeholder="https://www.instagram.com/...">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="line-url" class="form-label">LINE 連結</label>
+                    <input type="url" class="form-control" id="line-url" maxlength="255" placeholder="https://line.me/...">
+                </div>
+            </div>
+            
+            <div class="d-flex justify-content-end">
+                <button type="button" class="btn btn-primary" onclick="saveStoreInfo()">
+                    <i class="bi bi-save"></i> 儲存商店資訊
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 新增/編輯輪播圖 Modal -->
+<div class="modal fade" id="carouselModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="carouselModalTitle">新增輪播圖</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="carousel-form">
+                    <input type="hidden" id="carousel-id">
+                    
+                    <div class="mb-3">
+                        <label for="carousel-title" class="form-label">標題（選填）</label>
+                        <input type="text" class="form-control" id="carousel-title" maxlength="100">
+                        <div class="form-text">輪播圖的標題，用於識別</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="carousel-image" class="form-label">圖片 *</label>
+                        <input type="file" class="form-control" id="carousel-image" accept="image/*" required>
+                        <div class="form-text">建議尺寸：1920x600 像素</div>
+                        <div id="carousel-image-preview" class="mt-2"></div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="carousel-link-url" class="form-label">連結網址（選填）</label>
+                        <input type="url" class="form-control" id="carousel-link-url" maxlength="255" placeholder="https://...">
+                        <div class="form-text">點擊輪播圖後跳轉的網址</div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="carousel-display-order" class="form-label">顯示順序</label>
+                            <input type="number" class="form-control" id="carousel-display-order" min="0" value="0">
+                            <div class="form-text">數字越小越靠前顯示</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">狀態</label>
+                            <div class="form-check form-switch mt-2">
+                                <input class="form-check-input" type="checkbox" id="carousel-is-active" checked>
+                                <label class="form-check-label" for="carousel-is-active">啟用</label>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveCarousel()">儲存</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    checkAdminAuth();
+    loadCarousels();
+    loadStoreInfo();
+    
+    // 修復 modal 無障礙問題：在關閉前移除焦點
+    const carouselModal = document.getElementById('carouselModal');
+    if (carouselModal) {
+        carouselModal.addEventListener('hide.bs.modal', function() {
+            const activeElement = document.activeElement;
+            if (activeElement && activeElement.tagName === 'BUTTON') {
+                activeElement.blur();
+            }
+        });
+        
+        carouselModal.addEventListener('hidden.bs.modal', function() {
+            const buttons = carouselModal.querySelectorAll('button');
+            buttons.forEach(btn => btn.blur());
+        });
+    }
+});
+
+function checkAdminAuth() {
+    const token = localStorage.getItem('admin_token');
+    if (!token) {
+        window.location.href = '/admin/login';
+    }
+}
+
+// ==================== 輪播圖管理 ====================
+
+async function loadCarousels() {
+    const token = localStorage.getItem('admin_token');
+    try {
+        // 傳遞 is_active=false 來獲取所有輪播圖（包括停用的）
+        const response = await fetch('/api/admin/carousels?is_active=false', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) {
+            if (response.status === 401) {
+                window.location.href = '/admin/login';
+                return;
+            }
+            throw new Error('載入輪播圖失敗');
+        }
+        
+        const carousels = await response.json();
+        
+        if (carousels.length === 0) {
+            document.getElementById('carousels-container').innerHTML = `
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-images" style="font-size: 3rem;"></i>
+                    <p class="mt-3">尚無輪播圖資料，請點擊「新增輪播圖」開始建立</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // 按顯示順序排序
+        const sortedCarousels = [...carousels].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+        
+        // 為圖片 URL 添加時間戳以強制刷新
+        const timestamp = new Date().getTime();
+        
+        document.getElementById('carousels-container').innerHTML = `
+            <div class="row g-3">
+                ${sortedCarousels.map(carousel => `
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100">
+                            <div class="position-relative">
+                                <img src="${carousel.image_url}?t=${timestamp}" class="card-img-top" alt="${carousel.title || '輪播圖'}" style="max-height: 200px; width: 100%; object-fit: contain; background-color: #f8f9fa;" onerror="this.src='${carousel.image_url}'">
+                                <span class="position-absolute top-0 end-0 m-2 badge ${carousel.is_active ? 'bg-success' : 'bg-secondary'}">
+                                    ${carousel.is_active ? '啟用' : '停用'}
+                                </span>
+                            </div>
+                            <div class="card-body">
+                                <h6 class="card-title">${carousel.title || '<span class="text-muted">無標題</span>'}</h6>
+                                <p class="card-text small text-muted mb-2">
+                                    <i class="bi bi-sort-numeric-down"></i> 順序：${carousel.display_order || 0}
+                                </p>
+                                ${carousel.link_url ? `<p class="card-text small"><i class="bi bi-link-45deg"></i> <a href="${carousel.link_url}" target="_blank">${carousel.link_url}</a></p>` : ''}
+                            </div>
+                            <div class="card-footer bg-transparent">
+                                <div class="btn-group w-100" role="group">
+                                    <button class="btn btn-sm btn-primary" onclick="editCarousel(${carousel.id})">
+                                        <i class="bi bi-pencil"></i> 編輯
+                                    </button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteCarousel(${carousel.id}, '${carousel.title || '輪播圖'}')">
+                                        <i class="bi bi-trash"></i> 刪除
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    } catch (error) {
+        console.error('載入輪播圖失敗:', error);
+        document.getElementById('carousels-container').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i> 載入輪播圖失敗，請重新整理頁面
+            </div>
+        `;
+    }
+}
+
+function showAddCarouselModal() {
+    document.getElementById('carouselModalTitle').textContent = '新增輪播圖';
+    document.getElementById('carousel-form').reset();
+    document.getElementById('carousel-id').value = '';
+    document.getElementById('carousel-display-order').value = '0';
+    document.getElementById('carousel-is-active').checked = true;
+    document.getElementById('carousel-image-preview').innerHTML = '';
+    document.getElementById('carousel-image').required = true;
+    new bootstrap.Modal(document.getElementById('carouselModal')).show();
+}
+
+async function editCarousel(carouselId) {
+    const token = localStorage.getItem('admin_token');
+    try {
+        const response = await fetch('/api/admin/carousels?is_active=false', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) {
+            throw new Error('載入輪播圖失敗');
+        }
+        
+        const carousels = await response.json();
+        const carousel = carousels.find(c => c.id === carouselId);
+        
+        if (!carousel) {
+            alert('找不到該輪播圖');
+            return;
+        }
+        
+        document.getElementById('carouselModalTitle').textContent = '編輯輪播圖';
+        document.getElementById('carousel-id').value = carousel.id;
+        document.getElementById('carousel-title').value = carousel.title || '';
+        document.getElementById('carousel-link-url').value = carousel.link_url || '';
+        document.getElementById('carousel-display-order').value = carousel.display_order || 0;
+        document.getElementById('carousel-is-active').checked = carousel.is_active !== false;
+        document.getElementById('carousel-image').required = false;
+        
+        // 顯示現有圖片預覽（加上時間戳以強制刷新）
+        const timestamp = new Date().getTime();
+        document.getElementById('carousel-image-preview').innerHTML = `
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> 現有圖片：<br>
+                <img src="${carousel.image_url}?t=${timestamp}" class="img-thumbnail mt-2" style="max-width: 200px; max-height: 200px; object-fit: contain;" alt="現有圖片" onerror="this.src='${carousel.image_url}'">
+                <br><small>如需更換圖片，請選擇新圖片</small>
+            </div>
+        `;
+        
+        new bootstrap.Modal(document.getElementById('carouselModal')).show();
+    } catch (error) {
+        console.error('載入輪播圖失敗:', error);
+        alert('載入輪播圖失敗');
+    }
+}
+
+// 圖片預覽
+document.getElementById('carousel-image')?.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('carousel-image-preview').innerHTML = `
+                <img src="${e.target.result}" class="img-thumbnail" style="max-width: 200px; max-height: 200px; object-fit: contain;" alt="預覽">
+            `;
+        };
+        reader.readAsDataURL(file);
+    }
+});
+
+async function saveCarousel() {
+    const token = localStorage.getItem('admin_token');
+    const form = document.getElementById('carousel-form');
+    const carouselId = document.getElementById('carousel-id').value;
+    
+    // 如果是新增，檢查圖片是否已上傳
+    if (!carouselId && !document.getElementById('carousel-image').files[0]) {
+        alert('請選擇圖片');
+        return;
+    }
+    
+    const title = document.getElementById('carousel-title').value.trim() || null;
+    const linkUrl = document.getElementById('carousel-link-url').value.trim() || null;
+    const displayOrder = parseInt(document.getElementById('carousel-display-order').value) || 0;
+    const isActive = document.getElementById('carousel-is-active').checked;
+    const imageFile = document.getElementById('carousel-image').files[0];
+    
+    try {
+        if (carouselId) {
+            // 更新輪播圖
+            const formData = new FormData();
+            formData.append('title', title || '');
+            formData.append('link_url', linkUrl || '');
+            formData.append('display_order', displayOrder);
+            formData.append('is_active', isActive);
+            
+            // 如果有選擇新圖片，則上傳
+            if (imageFile) {
+                formData.append('image', imageFile);
+            }
+            
+            const response = await fetch(`/api/admin/carousels/${carouselId}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                body: formData
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                const errorMessage = errorData.detail || '更新失敗';
+                alert(errorMessage);
+                return;
+            }
+            
+            alert('輪播圖更新成功');
+        } else {
+            // 新增輪播圖
+            if (!imageFile) {
+                alert('請選擇圖片');
+                return;
+            }
+            
+            const formData = new FormData();
+            if (title) formData.append('title', title);
+            formData.append('image', imageFile);
+            if (linkUrl) formData.append('link_url', linkUrl);
+            formData.append('display_order', displayOrder);
+            formData.append('is_active', isActive);
+            
+            const response = await fetch('/api/admin/carousels', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                body: formData
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                const errorMessage = errorData.detail || '建立失敗';
+                alert(errorMessage);
+                return;
+            }
+            
+            alert('輪播圖建立成功');
+        }
+        
+        // 關閉 Modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('carouselModal'));
+        modal.hide();
+        
+        // 重新載入輪播圖列表
+        loadCarousels();
+    } catch (error) {
+        console.error('儲存輪播圖失敗:', error);
+        alert('儲存失敗，請稍後再試');
+    }
+}
+
+async function deleteCarousel(carouselId, carouselTitle) {
+    if (!confirm(`確定要刪除輪播圖「${carouselTitle}」嗎？`)) {
+        return;
+    }
+    
+    const token = localStorage.getItem('admin_token');
+    try {
+        const response = await fetch(`/api/admin/carousels/${carouselId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            const errorMessage = errorData.detail || '刪除失敗';
+            alert(errorMessage);
+            return;
+        }
+        
+        alert('輪播圖已刪除');
+        loadCarousels();
+    } catch (error) {
+        console.error('刪除輪播圖失敗:', error);
+        alert('刪除失敗，請稍後再試');
+    }
+}
+
+// ==================== 商店資訊管理 ====================
+
+async function loadStoreInfo() {
+    const token = localStorage.getItem('admin_token');
+    try {
+        const response = await fetch('/api/admin/store-info', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) {
+            if (response.status === 401) {
+                window.location.href = '/admin/login';
+                return;
+            }
+            throw new Error('載入商店資訊失敗');
+        }
+        
+        const storeInfo = await response.json();
+        
+        // 填入表單
+        document.getElementById('store-name').value = storeInfo.store_name || '';
+        document.getElementById('store-description').value = storeInfo.store_description || '';
+        document.getElementById('contact-email').value = storeInfo.contact_email || '';
+        document.getElementById('contact-phone').value = storeInfo.contact_phone || '';
+        document.getElementById('address').value = storeInfo.address || '';
+        document.getElementById('business-hours').value = storeInfo.business_hours || '';
+        document.getElementById('facebook-url').value = storeInfo.facebook_url || '';
+        document.getElementById('instagram-url').value = storeInfo.instagram_url || '';
+        document.getElementById('line-url').value = storeInfo.line_url || '';
+    } catch (error) {
+        console.error('載入商店資訊失敗:', error);
+        alert('載入商店資訊失敗，請重新整理頁面');
+    }
+}
+
+async function saveStoreInfo() {
+    const token = localStorage.getItem('admin_token');
+    const form = document.getElementById('store-info-form');
+    
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+    
+    const storeData = {
+        store_name: document.getElementById('store-name').value.trim(),
+        store_description: document.getElementById('store-description').value.trim() || null,
+        contact_email: document.getElementById('contact-email').value.trim() || null,
+        contact_phone: document.getElementById('contact-phone').value.trim() || null,
+        address: document.getElementById('address').value.trim() || null,
+        business_hours: document.getElementById('business-hours').value.trim() || null,
+        facebook_url: document.getElementById('facebook-url').value.trim() || null,
+        instagram_url: document.getElementById('instagram-url').value.trim() || null,
+        line_url: document.getElementById('line-url').value.trim() || null
+    };
+    
+    if (!storeData.store_name) {
+        alert('請輸入商店名稱');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/admin/store-info', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(storeData)
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            const errorMessage = errorData.detail || '儲存失敗';
+            alert(errorMessage);
+            return;
+        }
+        
+        alert('商店資訊已儲存');
+    } catch (error) {
+        console.error('儲存商店資訊失敗:', error);
+        alert('儲存失敗，請稍後再試');
+    }
+}
+</script>
+{% endblock %}

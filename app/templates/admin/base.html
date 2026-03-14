@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- 頂部導航欄 -->
+<nav class="navbar navbar-dark bg-dark sticky-top">
+    <div class="container-fluid">
+        <button class="btn btn-dark" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebar">
+            <i class="bi bi-list"></i>
+        </button>
+        <a class="navbar-brand mb-0 h1" href="/admin">
+            <i class="bi bi-gear"></i> 商店管理系統
+        </a>
+        <div>
+            <a href="/" class="btn btn-outline-light btn-sm me-2" target="_blank">
+                <i class="bi bi-shop"></i> 查看前台
+            </a>
+            <button class="btn btn-outline-light btn-sm" onclick="adminLogout()">
+                <i class="bi bi-box-arrow-right"></i> 登出
+            </button>
+        </div>
+    </div>
+</nav>
+
+<div class="container-fluid">
+    <div class="row">
+        <!-- 側邊欄 -->
+        <nav id="sidebar" class="col-md-3 col-lg-2 d-md-block bg-dark sidebar collapse">
+            <div class="position-sticky pt-3">
+                <h5 class="text-white px-3 mb-3">
+                    <i class="bi bi-grid"></i> 功能選單
+                </h5>
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link text-white" href="/admin/products" id="nav-products">
+                            <i class="bi bi-box"></i> 商品管理
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-white" href="/admin/orders" id="nav-orders">
+                            <i class="bi bi-cart-check"></i> 訂單管理
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-white" href="/admin/categories" id="nav-categories">
+                            <i class="bi bi-tags"></i> 分類管理
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-white" href="/admin/cms" id="nav-cms">
+                            <i class="bi bi-images"></i> 商店與首頁設定
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+
+        <!-- 主內容區 -->
+        <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+            <div class="d-flex justify-content-between align-items-center pt-3 pb-2 mb-3 border-bottom">
+                <h2>{% block page_title %}管理後台{% endblock %}</h2>
+            </div>
+
+            {% block admin_content %}{% endblock %}
+        </main>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* 側邊欄樣式 */
+    .sidebar {
+        min-height: calc(100vh - 56px);
+        background-color: #212529;
+    }
+
+    .sidebar .nav-link {
+        color: rgba(255, 255, 255, 0.75);
+        padding: 0.75rem 1rem;
+        border-radius: 0.25rem;
+        margin: 0.25rem 0.5rem;
+        transition: all 0.3s;
+    }
+
+    .sidebar .nav-link:hover {
+        color: #fff;
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .sidebar .nav-link.active {
+        color: #fff;
+        background-color: #0d6efd;
+    }
+
+    .sidebar .nav-link i {
+        margin-right: 0.5rem;
+    }
+
+    /* 卡片增強 */
+    .card {
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        transition: box-shadow 0.3s;
+        margin-bottom: 1.5rem;
+    }
+
+    .card:hover {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+
+    /* 表格增強 */
+    .table-hover tbody tr:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+    }
+
+    /* 按鈕圖標間距 */
+    .btn i {
+        margin-right: 0.25rem;
+    }
+
+    /* 響應式：在電腦螢幕寬度時隱藏漢堡選單按鈕 */
+    @media (min-width: 768px) {
+        .navbar button[data-bs-toggle="offcanvas"] {
+            display: none !important;
+        }
+    }
+
+    /* 在小螢幕時顯示漢堡選單按鈕 */
+    @media (max-width: 767.98px) {
+        .navbar button[data-bs-toggle="offcanvas"] {
+            display: inline-block;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 高亮當前頁面的選單項
+document.addEventListener('DOMContentLoaded', function() {
+    const currentPath = window.location.pathname;
+    const navLinks = document.querySelectorAll('.sidebar .nav-link');
+    
+    navLinks.forEach(link => {
+        if (link.getAttribute('href') === currentPath) {
+            link.classList.add('active');
+        }
+    });
+});
+</script>
+{% endblock %}

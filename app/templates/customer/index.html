@@ -1,0 +1,293 @@
+{% extends "customer/base.html" %}
+
+{% block title %}首頁 - ShopFlow{% endblock %}
+
+{% block customer_content %}
+<!-- 輪播圖 -->
+<div id="carousel" class="carousel slide">
+    <div class="carousel-inner" id="carousel-inner">
+        <!-- 輪播圖將由 JavaScript 動態載入 -->
+    </div>
+    <button class="carousel-control-prev" type="button" data-bs-target="#carousel" data-bs-slide="prev" style="display: none;">
+        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+        <span class="visually-hidden">Previous</span>
+    </button>
+    <button class="carousel-control-next" type="button" data-bs-target="#carousel" data-bs-slide="next" style="display: none;">
+        <span class="carousel-control-next-icon" aria-hidden="true"></span>
+        <span class="visually-hidden">Next</span>
+    </button>
+</div>
+
+<!-- 熱門商品 -->
+<div class="container my-5" id="products-section" style="display: none;">
+    <div class="section-header mb-5">
+        <h2 class="section-title">熱門商品</h2>
+        <p class="section-subtitle">精選推薦，不容錯過</p>
+    </div>
+    <div class="row" id="products">
+        <!-- 商品將由 JavaScript 動態載入 -->
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadCarousels();
+    loadCategories();
+    loadProducts();
+    updateCartCount();
+});
+
+async function loadCarousels() {
+    try {
+        const response = await fetch('/api/carousels');
+        const data = await response.json();
+        const carouselInner = document.getElementById('carousel-inner');
+        
+        const carousels = data.carousels || [];
+        
+        if (carousels.length === 0) {
+            carouselInner.innerHTML = '<div class="carousel-item active"><div class="d-block w-100 bg-secondary" style="height: 400px;"></div></div>';
+            // 沒有輪播圖時，確保按鈕保持隱藏
+            const prevButton = document.querySelector('#carousel .carousel-control-prev');
+            const nextButton = document.querySelector('#carousel .carousel-control-next');
+            if (prevButton) prevButton.style.display = 'none';
+            if (nextButton) nextButton.style.display = 'none';
+            return;
+        }
+        
+        carouselInner.innerHTML = carousels.map((carousel, index) => {
+            const imageTag = `<img src="${carousel.image_url}" class="d-block w-100" style="height: 400px; object-fit: cover;" alt="${carousel.title || ''}">`;
+            
+            // 如果有 link_url，則包裝在 <a> 標籤中
+            if (carousel.link_url) {
+                return `
+                    <div class="carousel-item ${index === 0 ? 'active' : ''}">
+                        <a href="${carousel.link_url}" ${carousel.link_url.startsWith('http') ? 'target="_blank" rel="noopener noreferrer"' : ''}>
+                            ${imageTag}
+                        </a>
+                    </div>
+                `;
+            } else {
+                return `
+                    <div class="carousel-item ${index === 0 ? 'active' : ''}">
+                        ${imageTag}
+                    </div>
+                `;
+            }
+        }).join('');
+        
+        // 只有在有多張圖片時才顯示控制按鈕
+        if (carousels.length > 1) {
+            const prevButton = document.querySelector('#carousel .carousel-control-prev');
+            const nextButton = document.querySelector('#carousel .carousel-control-next');
+            if (prevButton) prevButton.style.display = 'block';
+            if (nextButton) nextButton.style.display = 'block';
+        }
+        
+        // 初始化輪播圖
+        initCarousel();
+    } catch (error) {
+        console.error('載入輪播圖失敗:', error);
+    }
+}
+
+function initCarousel() {
+    const carouselElement = document.getElementById('carousel');
+    if (!carouselElement) return;
+    
+    // 檢查是否有輪播項目
+    const items = carouselElement.querySelectorAll('.carousel-item');
+    if (items.length === 0) {
+        return;
+    }
+    
+    // 初始化：確保第一個項目正確顯示
+    items.forEach((item, index) => {
+        if (index === 0) {
+            item.classList.add('active');
+            item.style.display = 'flex';
+        } else {
+            item.classList.remove('active');
+            item.style.display = 'none';
+        }
+    });
+    
+    // 手動切換輪播圖的函數（帶淡入淡出動畫）
+    function goToSlide(index) {
+        if (index < 0 || index >= items.length) return;
+        
+        const currentActive = carouselElement.querySelector('.carousel-item.active');
+        const targetItem = items[index];
+        
+        if (currentActive && targetItem && currentActive !== targetItem) {
+            // 淡出當前圖片
+            currentActive.style.opacity = '0';
+            
+            // 淡出完成後切換
+            setTimeout(() => {
+                currentActive.classList.remove('active');
+                currentActive.style.display = 'none';
+                currentActive.style.opacity = '1'; // 重置透明度
+                
+                // 顯示目標圖片並淡入
+                targetItem.classList.add('active');
+                targetItem.style.display = 'flex';
+                targetItem.style.opacity = '0';
+                
+                // 觸發淡入動畫
+                setTimeout(() => {
+                    targetItem.style.opacity = '1';
+                }, 10);
+            }, 300); // 淡出動畫時間（毫秒）
+        }
+    }
+    
+    function goToPrev() {
+        const activeIndex = Array.from(items).findIndex(item => item.classList.contains('active'));
+        const prevIndex = activeIndex <= 0 ? items.length - 1 : activeIndex - 1;
+        goToSlide(prevIndex);
+    }
+    
+    function goToNext() {
+        const activeIndex = Array.from(items).findIndex(item => item.classList.contains('active'));
+        const nextIndex = activeIndex >= items.length - 1 ? 0 : activeIndex + 1;
+        goToSlide(nextIndex);
+    }
+    
+    // 手動綁定控制按鈕事件
+    const prevButton = carouselElement.querySelector('.carousel-control-prev');
+    const nextButton = carouselElement.querySelector('.carousel-control-next');
+    
+    if (prevButton) {
+        prevButton.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            goToPrev();
+        };
+    }
+    
+    if (nextButton) {
+        nextButton.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            goToNext();
+        };
+    }
+    
+    // 自動輪播功能
+    let autoPlayInterval = null;
+    function startAutoPlay() {
+        if (autoPlayInterval) clearInterval(autoPlayInterval);
+        autoPlayInterval = setInterval(() => {
+            goToNext();
+        }, 2000);
+    }
+    
+    function stopAutoPlay() {
+        if (autoPlayInterval) {
+            clearInterval(autoPlayInterval);
+            autoPlayInterval = null;
+        }
+    }
+    
+    // 開始自動播放
+    startAutoPlay();
+    
+    // 滑鼠懸停時暫停
+    carouselElement.addEventListener('mouseenter', stopAutoPlay);
+    carouselElement.addEventListener('mouseleave', startAutoPlay);
+}
+
+async function loadCategories() {
+    try {
+        const response = await fetch('/api/categories');
+        const data = await response.json();
+        const categoriesDiv = document.getElementById('categories');
+        
+        if (!categoriesDiv) {
+            // 如果頁面上沒有分類區域，則不執行
+            return;
+        }
+        
+        const categories = data.categories || [];
+        
+        categoriesDiv.innerHTML = categories.map(category => `
+            <div class="col-md-3 mb-3">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">${category.name}</h5>
+                        <a href="/products?category_id=${category.id}" class="btn btn-primary">查看商品</a>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('載入分類失敗:', error);
+    }
+}
+
+async function loadProducts() {
+    try {
+        const response = await fetch('/api/products?limit=8');
+        const data = await response.json();
+        const productsDiv = document.getElementById('products');
+        const productsSection = document.getElementById('products-section');
+        
+        const products = data.products || [];
+        
+        if (products.length > 0) {
+            productsDiv.innerHTML = products.map(product => {
+                // 取得商品圖片：優先使用 primary_image，否則從 images 陣列中取得第一張
+                let imageUrl = product.primary_image;
+                if (!imageUrl && product.images && product.images.length > 0) {
+                    // 優先使用 is_primary=true 的圖片，否則使用第一張
+                    const primaryImg = product.images.find(img => img.is_primary);
+                    imageUrl = primaryImg ? primaryImg.image_url : product.images[0].image_url;
+                }
+                // 如果沒有圖片，使用預設圖片
+                imageUrl = imageUrl || '/static/images/placeholder.png';
+                
+                // 取得價格顯示（使用 price_range.display）
+                const priceDisplay = product.price_range ? product.price_range.display : '0';
+                
+                return `
+                <div class="col-md-3 mb-4">
+                    <div class="product-card card h-100">
+                        <div class="product-image-wrapper">
+                            <img src="${imageUrl}" class="product-image" alt="${product.name}" onerror="this.src='/static/images/placeholder.png'">
+                        </div>
+                        <div class="card-body">
+                            <h5 class="product-title">${product.name}</h5>
+                            <p class="product-price">NT$ ${priceDisplay}</p>
+                            <a href="/products/${product.id}" class="btn btn-primary w-100 product-btn">
+                                <i class="bi bi-cart-plus"></i> 立即購買
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+            
+            // 商品載入完成後顯示整個區塊
+            if (productsSection) {
+                productsSection.style.display = 'block';
+            }
+        } else {
+            // 沒有商品時，保持隱藏或顯示提示訊息
+            if (productsSection) {
+                productsSection.style.display = 'none';
+            }
+        }
+    } catch (error) {
+        console.error('載入商品失敗:', error);
+        // 載入失敗時，保持隱藏
+        const productsSection = document.getElementById('products-section');
+        if (productsSection) {
+            productsSection.style.display = 'none';
+        }
+    }
+}
+</script>
+{% endblock %}

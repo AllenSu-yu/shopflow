@@ -1,4 +1,4 @@
-後端：python+Flask API
+後端：python+FastAPI
 DB：AWS RDS
 伺服器：AWS EC2
 圖片儲存：AWS S3

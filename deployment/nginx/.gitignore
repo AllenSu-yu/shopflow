@@ -1,0 +1,11 @@
+# 忽略實際部署的設定檔（包含真實網域或敏感資訊）
+# 範本檔案 shopflow.conf 應該保留在版控中
+
+*.conf.local
+*.conf.production
+*.conf.prod
+*.conf.backup
+
+# 但保留範本檔案
+!shopflow.conf
+!shopflow.conf.example

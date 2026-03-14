@@ -1,0 +1,317 @@
+{% extends "admin/base.html" %}
+
+{% block title %}分類管理 - ShopFlow{% endblock %}
+
+{% block page_title %}分類管理{% endblock %}
+
+{% block admin_content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0">分類列表</h4>
+        <small class="text-muted">管理所有商品分類</small>
+    </div>
+    <button class="btn btn-primary" onclick="showAddCategoryModal()">
+        <i class="bi bi-plus-circle"></i> 新增分類
+    </button>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped">
+                <thead class="table-dark">
+                    <tr>
+                        <th>ID</th>
+                        <th>分類名稱</th>
+                        <th>排序值</th>
+                        <th>狀態</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="categories-table">
+                    <!-- 分類列表將由 JavaScript 動態載入 -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 新增/編輯分類 Modal -->
+<div class="modal fade" id="categoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="categoryModalTitle">新增分類</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="category-form">
+                    <input type="hidden" id="category-id">
+                    
+                    <div class="mb-3">
+                        <label for="category-name" class="form-label">分類名稱 *</label>
+                        <input type="text" class="form-control" id="category-name" required maxlength="50">
+                        <div class="form-text">最多 50 個字元</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="category-sort-order" class="form-label">排序值</label>
+                        <input type="number" class="form-control" id="category-sort-order" min="0">
+                        <div class="form-text">數字越小越靠前顯示，留空則排在最後</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">狀態</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="category-is-active" checked>
+                            <label class="form-check-label" for="category-is-active">啟用（啟用後才會顯示在前台）</label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveCategory()">儲存</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    checkAdminAuth();
+    loadCategories();
+    
+    // 修復 modal 無障礙問題：在關閉前移除焦點
+    const categoryModal = document.getElementById('categoryModal');
+    if (categoryModal) {
+        categoryModal.addEventListener('hide.bs.modal', function() {
+            const activeElement = document.activeElement;
+            if (activeElement && activeElement.tagName === 'BUTTON') {
+                activeElement.blur();
+            }
+        });
+        
+        categoryModal.addEventListener('hidden.bs.modal', function() {
+            const buttons = categoryModal.querySelectorAll('button');
+            buttons.forEach(btn => btn.blur());
+        });
+    }
+});
+
+function checkAdminAuth() {
+    const token = localStorage.getItem('admin_token');
+    if (!token) {
+        window.location.href = '/admin/login';
+    }
+}
+
+async function loadCategories() {
+    const token = localStorage.getItem('admin_token');
+    try {
+        const response = await fetch('/api/admin/categories', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) {
+            if (response.status === 401) {
+                window.location.href = '/admin/login';
+                return;
+            }
+            throw new Error('載入分類失敗');
+        }
+        
+        const data = await response.json();
+        const categories = data.categories || [];
+        
+        if (categories.length === 0) {
+            document.getElementById('categories-table').innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">
+                        尚無分類資料，請點擊「新增分類」開始建立
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        document.getElementById('categories-table').innerHTML = categories.map(category => `
+            <tr>
+                <td>${category.id}</td>
+                <td><strong>${category.name}</strong></td>
+                <td>${category.sort_order !== null && category.sort_order !== undefined ? category.sort_order : '<span class="text-muted">-</span>'}</td>
+                <td>
+                    <span class="badge ${category.is_active ? 'bg-success' : 'bg-secondary'}">
+                        ${category.is_active ? '啟用' : '停用'}
+                    </span>
+                </td>
+                <td>
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-sm btn-primary" onclick="editCategory(${category.id})">
+                            <i class="bi bi-pencil"></i> 編輯
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteCategory(${category.id}, '${category.name}')">
+                            <i class="bi bi-trash"></i> 刪除
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        console.error('載入分類失敗:', error);
+        document.getElementById('categories-table').innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-danger py-4">
+                    載入分類失敗，請重新整理頁面
+                </td>
+            </tr>
+        `;
+    }
+}
+
+function showAddCategoryModal() {
+    document.getElementById('categoryModalTitle').textContent = '新增分類';
+    document.getElementById('category-form').reset();
+    document.getElementById('category-id').value = '';
+    document.getElementById('category-is-active').checked = true;
+    document.getElementById('category-sort-order').value = '';
+    new bootstrap.Modal(document.getElementById('categoryModal')).show();
+}
+
+async function editCategory(categoryId) {
+    const token = localStorage.getItem('admin_token');
+    try {
+        // 先從列表中取得分類資料（因為 API 沒有單一分類的 GET endpoint）
+        const response = await fetch('/api/admin/categories', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) {
+            throw new Error('載入分類失敗');
+        }
+        
+        const data = await response.json();
+        const categories = data.categories || [];
+        const category = categories.find(c => c.id === categoryId);
+        
+        if (!category) {
+            alert('找不到該分類');
+            return;
+        }
+        
+        document.getElementById('categoryModalTitle').textContent = '編輯分類';
+        document.getElementById('category-id').value = category.id;
+        document.getElementById('category-name').value = category.name;
+        document.getElementById('category-sort-order').value = category.sort_order !== null && category.sort_order !== undefined ? category.sort_order : '';
+        document.getElementById('category-is-active').checked = category.is_active !== false;
+        
+        new bootstrap.Modal(document.getElementById('categoryModal')).show();
+    } catch (error) {
+        console.error('載入分類失敗:', error);
+        alert('載入分類失敗');
+    }
+}
+
+async function saveCategory() {
+    const token = localStorage.getItem('admin_token');
+    const form = document.getElementById('category-form');
+    
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+    
+    const categoryId = document.getElementById('category-id').value;
+    const name = document.getElementById('category-name').value.trim();
+    const sortOrderInput = document.getElementById('category-sort-order').value.trim();
+    const sortOrder = sortOrderInput === '' ? null : parseInt(sortOrderInput);
+    const isActive = document.getElementById('category-is-active').checked;
+    
+    if (!name) {
+        alert('請輸入分類名稱');
+        return;
+    }
+    
+    const categoryData = {
+        name: name,
+        sort_order: sortOrder,
+        is_active: isActive
+    };
+    
+    try {
+        let response;
+        if (categoryId) {
+            // 更新分類
+            response = await fetch(`/api/admin/categories/${categoryId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(categoryData)
+            });
+        } else {
+            // 新增分類
+            response = await fetch('/api/admin/categories', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(categoryData)
+            });
+        }
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            const errorMessage = errorData.detail || '操作失敗';
+            alert(errorMessage);
+            return;
+        }
+        
+        // 關閉 Modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('categoryModal'));
+        modal.hide();
+        
+        // 重新載入分類列表
+        loadCategories();
+        
+        alert(categoryId ? '分類更新成功' : '分類建立成功');
+    } catch (error) {
+        console.error('儲存分類失敗:', error);
+        alert('儲存失敗，請稍後再試');
+    }
+}
+
+async function deleteCategory(categoryId, categoryName) {
+    if (!confirm(`確定要刪除分類「${categoryName}」嗎？\n\n注意：如果該分類下仍有商品，將無法刪除。`)) {
+        return;
+    }
+    
+    const token = localStorage.getItem('admin_token');
+    try {
+        const response = await fetch(`/api/admin/categories/${categoryId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            const errorMessage = errorData.detail || '刪除失敗';
+            alert(errorMessage);
+            return;
+        }
+        
+        alert('分類已刪除');
+        loadCategories();
+    } catch (error) {
+        console.error('刪除分類失敗:', error);
+        alert('刪除失敗，請稍後再試');
+    }
+}
+</script>
+{% endblock %}
