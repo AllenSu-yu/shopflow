@@ -7,11 +7,11 @@
         <button class="btn btn-dark" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebar">
             <i class="bi bi-list"></i>
         </button>
-        <a class="navbar-brand mb-0 h1" href="/admin">
+        <a class="navbar-brand mb-0 h1" href="/shop/{{ store.slug }}/admin/">
             <i class="bi bi-gear"></i> 商店管理系統
         </a>
         <div>
-            <a href="/" class="btn btn-outline-light btn-sm me-2" target="_blank">
+            <a href="/shop/{{ store.slug }}/" class="btn btn-outline-light btn-sm me-2" target="_blank">
                 <i class="bi bi-shop"></i> 查看前台
             </a>
             <button class="btn btn-outline-light btn-sm" onclick="adminLogout()">
@@ -36,22 +36,22 @@
                     </h5>
                     <ul class="nav flex-column">
                         <li class="nav-item">
-                            <a class="nav-link text-white" href="/admin/products" id="nav-products">
+                            <a class="nav-link text-white" href="/shop/{{ store.slug }}/admin/products" id="nav-products">
                                 <i class="bi bi-box"></i> 商品管理
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link text-white" href="/admin/orders" id="nav-orders">
+                            <a class="nav-link text-white" href="/shop/{{ store.slug }}/admin/orders" id="nav-orders">
                                 <i class="bi bi-cart-check"></i> 訂單管理
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link text-white" href="/admin/categories" id="nav-categories">
+                            <a class="nav-link text-white" href="/shop/{{ store.slug }}/admin/categories" id="nav-categories">
                                 <i class="bi bi-tags"></i> 分類管理
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link text-white" href="/admin/cms" id="nav-cms">
+                            <a class="nav-link text-white" href="/shop/{{ store.slug }}/admin/cms" id="nav-cms">
                                 <i class="bi bi-images"></i> 商店與首頁設定
                             </a>
                         </li>

@@ -13,6 +13,7 @@
                 </div>
                 <div class="card-body">
                     <form id="checkout-form">
+                        <h6 class="mb-3">收件資訊</h6>
                         <div class="mb-3">
                             <label for="recipient_name" class="form-label">收件人姓名 *</label>
                             <input type="text" class="form-control" id="recipient_name" required>
@@ -25,10 +26,24 @@
                             <label for="recipient_address" class="form-label">收件地址 *</label>
                             <textarea class="form-control" id="recipient_address" rows="3" required></textarea>
                         </div>
+
+                        <hr class="my-4">
+                        <h6 class="mb-3">付款資訊（信用卡）</h6>
                         <div class="mb-3">
-                            <label for="note" class="form-label">備註</label>
-                            <textarea class="form-control" id="note" rows="3"></textarea>
+                            <label class="form-label">卡號</label>
+                            <div class="tpfield" id="card-number"></div>
                         </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">到期日 (MM/YY)</label>
+                                <div class="tpfield" id="card-expiration-date"></div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">驗證碼 (CVV)</label>
+                                <div class="tpfield" id="card-ccv"></div>
+                            </div>
+                        </div>
+                        <div id="tappay-error" class="text-danger small mt-2" style="display: none;"></div>
                     </form>
                 </div>
             </div>
@@ -42,137 +57,222 @@
                     <!-- 訂單摘要將由 JavaScript 動態載入 -->
                 </div>
                 <div class="card-footer">
-                    <button class="btn btn-primary btn-lg w-100" onclick="submitOrder()">確認訂單</button>
+                    <button class="btn btn-primary btn-lg w-100" id="submit-button"
+                        onclick="submitOrder()">確認訂單並付款</button>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<style>
+    .tpfield {
+        height: 40px;
+        width: 100%;
+        border: 1px solid #ced4da;
+        border-radius: .375rem;
+        padding: 8px 12px;
+        background-color: #fff;
+        transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+    }
+
+    .tappay-field-focus {
+        border-color: #86b7fe;
+        outline: 0;
+        box-shadow: 0 0 0 .25rem rgba(13, 110, 253, .25);
+    }
+
+    .tappay-field-invalid {
+        border-color: #dc3545;
+    }
+</style>
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://js.tappaysdk.com/sdk/tpdirect/v5.14.0"></script>
 <script>
-let cartData = null;
+    let cartData = null;
 
-document.addEventListener('DOMContentLoaded', function() {
-    loadCart();
-});
+    // TapPay 初始化
+    TPDirect.setupSDK({{ tappay_app_id }}, '{{ tappay_app_key }}', 'sandbox');
 
-async function loadCart() {
-    const token = localStorage.getItem('token');
-    if (!token) {
-        window.location.href = '/login';
-        return;
-    }
-    
-    try {
-        const response = await fetch('/api/cart', {
-            headers: {
-                'Authorization': `Bearer ${token}`
+    // 設定 TapPay 卡號輸入框
+    TPDirect.card.setup({
+        fields: {
+            number: {
+                element: '#card-number',
+                placeholder: '**** **** **** ****'
+            },
+            expirationDate: {
+                element: '#card-expiration-date',
+                placeholder: 'MM / YY'
+            },
+            ccv: {
+                element: '#card-ccv',
+                placeholder: 'CVV'
             }
-        });
-        
-        if (!response.ok) {
-            // 處理認證錯誤（401）
-            if (response.status === 401) {
-                if (typeof handleAuthError === 'function') {
-                    handleAuthError(response, '請先登入以進行結帳');
-                } else {
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('user');
-                    if (confirm('您的登入已過期，請重新登入\n\n是否前往登入頁面？')) {
-                        window.location.href = '/login';
-                    }
+        },
+        styles: {
+            'input': {
+                'color': 'gray'
+            },
+            ':focus': {
+                'color': 'black'
+            },
+            '.valid': {
+                'color': 'green'
+            },
+            '.invalid': {
+                'color': 'red'
+            }
+        },
+        // 此設定可讓卡號輸入滿 4 位後自動跳下一個對話框
+        isMaskCardNumber: true,
+        maskCardNumberCircle: false
+    });
+
+    TPDirect.card.onUpdate(function (update) {
+        const submitButton = document.getElementById('submit-button');
+        const errorDiv = document.getElementById('tappay-error');
+
+        if (update.canGetPrime) {
+            submitButton.removeAttribute('disabled');
+            errorDiv.style.display = 'none';
+        } else {
+            // 只有在真的點擊後或是輸入過才顯示錯誤可能比較好，但這裡先維持簡單
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', function () {
+        loadCart();
+    });
+
+    async function loadCart() {
+        const token = localStorage.getItem('customer_token_{{ store.slug }}');
+        if (!token) {
+            window.location.href = '/shop/{{ store.slug }}/login';
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/shop/{{ store.slug }}/cart', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
                 }
-            } else {
-                alert('載入購物車失敗');
+            });
+
+            if (!response.ok) {
+                if (response.status === 401) {
+                    localStorage.removeItem('customer_token_{{ store.slug }}');
+                    localStorage.removeItem('customer_user_{{ store.slug }}');
+                    window.location.href = '/shop/{{ store.slug }}/login';
+                } else {
+                    alert('載入購物車失敗');
+                }
+                return;
             }
-            return;
-        }
-        
-        cartData = await response.json();
-        
-        if (cartData.items.length === 0) {
-            alert('購物車是空的');
-            window.location.href = '/cart';
-            return;
-        }
-        
-        const total = cartData.items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-        document.getElementById('order-summary').innerHTML = `
+
+            cartData = await response.json();
+
+            if (cartData.items.length === 0) {
+                alert('購物車是空的');
+                window.location.href = '/shop/{{ store.slug }}/cart';
+                return;
+            }
+
+            const total = cartData.total;
+            const shipping_fee = 100; // 預設運費與後端一致
+
+            document.getElementById('order-summary').innerHTML = `
             ${cartData.items.map(item => `
                 <div class="d-flex justify-content-between mb-2">
-                    <span>${item.product.name} x ${item.quantity}</span>
-                    <span>NT$ ${item.product.price * item.quantity}</span>
+                    <span>${item.product_name} x ${item.quantity}</span>
+                    <span>NT$ ${item.product_price * item.quantity}</span>
                 </div>
             `).join('')}
+            <div class="d-flex justify-content-between mb-2">
+                <span>運費</span>
+                <span>NT$ ${shipping_fee}</span>
+            </div>
             <hr>
             <div class="d-flex justify-content-between">
                 <strong>總計：</strong>
-                <strong class="text-danger">NT$ ${total}</strong>
+                <strong class="text-danger">NT$ ${total + shipping_fee}</strong>
             </div>
         `;
-    } catch (error) {
-        console.error('載入購物車失敗:', error);
-    }
-}
-
-async function submitOrder() {
-    const token = localStorage.getItem('token');
-    const form = document.getElementById('checkout-form');
-    
-    if (!form.checkValidity()) {
-        form.reportValidity();
-        return;
-    }
-    
-    const orderData = {
-        recipient_name: document.getElementById('recipient_name').value,
-        recipient_phone: document.getElementById('recipient_phone').value,
-        recipient_address: document.getElementById('recipient_address').value,
-        note: document.getElementById('note').value,
-        items: cartData.items.map(item => ({
-            product_id: item.product.id,
-            quantity: item.quantity
-        }))
-    };
-    
-    try {
-        const response = await fetch('/api/orders', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(orderData)
-        });
-        
-        if (response.ok) {
-            const order = await response.json();
-            alert('訂單建立成功！');
-            window.location.href = `/orders/${order.id}`;
-        } else {
-            // 處理認證錯誤（401）
-            if (response.status === 401) {
-                const data = await response.json().catch(() => ({}));
-                if (typeof handleAuthError === 'function') {
-                    handleAuthError(response, data.detail || '請先登入');
-                } else {
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('user');
-                    if (confirm('您的登入已過期，請重新登入\n\n是否前往登入頁面？')) {
-                        window.location.href = '/login';
-                    }
-                }
-            } else {
-                const data = await response.json();
-                alert(data.detail || '建立訂單失敗');
-            }
+        } catch (error) {
+            console.error('載入購物車失敗:', error);
         }
-    } catch (error) {
-        console.error('建立訂單失敗:', error);
-        alert('建立訂單失敗');
     }
-}
+
+    async function submitOrder() {
+        const form = document.getElementById('checkout-form');
+        const submitButton = document.getElementById('submit-button');
+        const errorDiv = document.getElementById('tappay-error');
+
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+
+        const tappayStatus = TPDirect.card.getTappayFieldsStatus();
+        if (tappayStatus.canGetPrime === false) {
+            errorDiv.textContent = '請填寫正確的信用卡資訊';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        submitButton.setAttribute('disabled', 'true');
+        submitButton.textContent = '處理中...';
+
+        // 取得 TapPay Prime
+        TPDirect.card.getPrime(async (result) => {
+            if (result.status !== 0) {
+                alert('取得付款資訊失敗: ' + result.msg);
+                submitButton.removeAttribute('disabled');
+                submitButton.textContent = '確認訂單並付款';
+                return;
+            }
+
+            const prime = result.card.prime;
+            const token = localStorage.getItem('customer_token_{{ store.slug }}');
+
+            const orderData = {
+                recipient_name: document.getElementById('recipient_name').value,
+                recipient_phone: document.getElementById('recipient_phone').value,
+                recipient_address: document.getElementById('recipient_address').value,
+                payment_method: 'credit_card',
+                shipping_method: 'standard',
+                prime: prime
+            };
+
+            try {
+                const response = await fetch('/api/shop/{{ store.slug }}/orders', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(orderData)
+                });
+
+                if (response.ok) {
+                    const order = await response.json();
+                    alert('付款成功！訂單已建立');
+                    window.location.href = `/shop/{{ store.slug }}/orders/${order.id}?new=true`;
+                } else {
+                    const data = await response.json();
+                    alert('結帳失敗: ' + (data.detail || '未知錯誤'));
+                    submitButton.removeAttribute('disabled');
+                    submitButton.textContent = '確認訂單並付款';
+                }
+            } catch (error) {
+                console.error('建立訂單失敗:', error);
+                alert('結帳過程發生錯誤');
+                submitButton.removeAttribute('disabled');
+                submitButton.textContent = '確認訂單並付款';
+            }
+        });
+    }
 </script>
 {% endblock %}

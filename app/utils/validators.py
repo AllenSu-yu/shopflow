@@ -29,15 +29,8 @@ class CustomerLogin(BaseModel):
 
 class AdminLogin(BaseModel):
     """管理員登入"""
-    username: str = Field(..., min_length=1, max_length=50, description="使用者名稱")
+    email: EmailStr = Field(..., description="管理員 Email")
     password: str = Field(..., min_length=6, max_length=50, description="密碼")
-    
-    @validator('username', pre=True)
-    def strip_username(cls, v):
-        """自動去除前後空白"""
-        if isinstance(v, str):
-            return v.strip()
-        return v
 
 
 # ==================== Product Validators ====================
@@ -349,6 +342,7 @@ class OrderCreate(BaseModel):
     recipient_address: str = Field(..., min_length=1, max_length=255, description="收件地址")
     payment_method: Optional[str] = Field(None, max_length=50, description="付款方式")
     shipping_method: Optional[str] = Field(None, max_length=50, description="物流方式")
+    prime: Optional[str] = Field(None, description="TapPay Prime")
     
     @validator('recipient_name', 'recipient_phone', 'recipient_address', 'payment_method', 'shipping_method', pre=True)
     def strip_strings(cls, v):

@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy.orm import relationship
 from datetime import datetime
 from app import Base
 
@@ -7,6 +8,7 @@ class Carousel(Base):
     __tablename__ = 'carousels'
     
     id = Column(Integer, primary_key=True)
+    store_id = Column(Integer, ForeignKey('stores.id'), nullable=False, index=True)
     title = Column(String(100), nullable=True)  # 標題（選填）
     image_url = Column(String(255), nullable=False)  # 圖片路徑
     link_url = Column(String(255), nullable=True)  # 點擊後跳轉的連結（選填）
@@ -22,8 +24,12 @@ class Carousel(Base):
 class StoreInfo(Base):
     """商店資訊設定"""
     __tablename__ = 'store_info'
+    __table_args__ = (
+        UniqueConstraint('store_id', name='uq_store_info_per_store'),
+    )
     
     id = Column(Integer, primary_key=True)
+    store_id = Column(Integer, ForeignKey('stores.id'), nullable=False, index=True)
     store_name = Column(String(100), nullable=False)  # 商店名稱
     store_description = Column(Text, nullable=True)  # 商店描述
     contact_email = Column(String(100), nullable=True)  # 聯絡信箱

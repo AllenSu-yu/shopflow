@@ -6,6 +6,8 @@ class Product(Base):
     __tablename__ = 'products'
     
     id = Column(Integer, primary_key=True)
+    store_id = Column(Integer, ForeignKey('stores.id'), nullable=False, index=True)
+    sid = Column(Integer, nullable=False)  # 商店內商品編號（從 1 開始）
     name = Column(String(100), nullable=False)
     stock = Column(Integer, default=0)  # 總庫存（由 variants 庫存總和自動計算）
     description = Column(Text, nullable=True)
@@ -13,6 +15,10 @@ class Product(Base):
     
     # 外鍵：指向 categories 表
     category_id = Column(Integer, ForeignKey('categories.id'), nullable=False)
+    
+    __table_args__ = (
+        UniqueConstraint('store_id', 'sid', name='uq_store_product_sid'),
+    )
     
     # 關聯設定：一對多
     images = relationship('ProductImage', backref='product', lazy=True, cascade='all, delete-orphan')

@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}ShopFlow - 商店註冊{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow-sm">
+                <div class="card-body p-4 p-md-5">
+                    <div class="text-center mb-4">
+                        <i class="bi bi-shop display-4 text-primary"></i>
+                        <h2 class="mt-3 font-weight-bold">建立您的 ShopFlow 商店</h2>
+                        <p class="text-muted">只需幾個步驟，立即開啟您的線上商店</p>
+                    </div>
+
+                    <form id="merchantRegisterForm">
+                        <h5 class="mb-3 text-primary border-bottom pb-2">商店資訊</h5>
+                        
+                        <div class="mb-3">
+                            <label for="storeName" class="form-label">商店名稱 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="storeName" name="storeName" required placeholder="例如：我的美好商店">
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="storeSlug" class="form-label">商店專屬網址 <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light">/shop/</span>
+                                <input type="text" class="form-control" id="storeSlug" name="storeSlug" required placeholder="my-shop" pattern="[a-zA-Z0-9-]+" title="只能包含英文字母、數字和減號">
+                            </div>
+                            <div class="form-text">這將成為您商店的專屬網址，設定後不可更改。只能使用小寫字母、數字及減號。</div>
+                        </div>
+
+                        <h5 class="mb-3 text-primary border-bottom pb-2">管理員帳號設定</h5>
+
+                        <div class="mb-3">
+                            <label for="adminEmail" class="form-label">管理員 Email <span class="text-danger">*</span></label>
+                            <input type="email" class="form-control" id="adminEmail" name="adminEmail" required placeholder="admin@example.com">
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="adminPassword" class="form-label">管理員密碼 <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="adminPassword" name="adminPassword" required>
+                                <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100 py-2 fs-5 mb-3" id="submitBtn">
+                            <span class="spinner-border spinner-border-sm d-none me-2" role="status" aria-hidden="true" id="submitSpinner"></span>
+                            免費註冊商店
+                        </button>
+                        
+                        <div class="text-center mt-3">
+                            已擁有商店？ <a href="/shop/admin/login" class="text-decoration-none">前往後台登入此入口將尋找商店</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('merchantRegisterForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const submitSpinner = document.getElementById('submitSpinner');
+    const togglePasswordBtn = document.getElementById('togglePassword');
+    const passwordInput = document.getElementById('adminPassword');
+    const storeSlugInput = document.getElementById('storeSlug');
+    
+    // 密碼顯示/隱藏切換
+    togglePasswordBtn.addEventListener('click', function() {
+        const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+        passwordInput.setAttribute('type', type);
+        this.querySelector('i').classList.toggle('bi-eye');
+        this.querySelector('i').classList.toggle('bi-eye-slash');
+    });
+
+    // Slug 自動轉小寫並移除非法字元
+    storeSlugInput.addEventListener('input', function() {
+        this.value = this.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+    });
+    
+    // 表單提交處理
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        // 取得表單資料
+        const storeName = document.getElementById('storeName').value;
+        const storeSlug = document.getElementById('storeSlug').value;
+        const adminEmail = document.getElementById('adminEmail').value;
+        const adminPassword = passwordInput.value;
+        
+        // Disable 按鈕顯示載入中
+        submitBtn.disabled = true;
+        submitSpinner.classList.remove('d-none');
+        submitBtn.childNodes[2].textContent = ' 註冊中...';
+        
+        try {
+            const response = await fetch('/api/merchant/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    store_name: storeName,
+                    store_slug: storeSlug,
+                    admin_email: adminEmail,
+                    admin_password: adminPassword
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                // 註冊成功，顯示提示並導向新商店的後台登入頁面
+                alert('商店註冊成功！即將為您導向後台登入頁面。');
+                window.location.href = `/shop/${storeSlug}/admin/login`;
+            } else {
+                // 顯示錯誤訊息
+                alert(`註冊失敗：${data.detail || '請檢查輸入資料後重試'}`);
+                submitBtn.disabled = false;
+                submitSpinner.classList.add('d-none');
+                submitBtn.childNodes[2].textContent = ' 免費註冊商店';
+            }
+        } catch (error) {
+            console.error('註冊發生錯誤:', error);
+            alert('系統發生錯誤，請稍後再試');
+            submitBtn.disabled = false;
+            submitSpinner.classList.add('d-none');
+            submitBtn.childNodes[2].textContent = ' 免費註冊商店';
+        }
+    });
+});
+</script>
+{% endblock %}

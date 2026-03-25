@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 def get_products(
     db: Session,
+    store_id: int,
     category_id: Optional[int] = None,
     is_active: Optional[bool] = True,
     skip: int = 0,
@@ -26,7 +27,7 @@ def get_products(
         joinedload(Product.spec_groups).joinedload(ProductSpecGroup.spec_values),
         joinedload(Product.variants).joinedload(ProductVariant.spec_value_1),
         joinedload(Product.variants).joinedload(ProductVariant.spec_value_2)
-    )
+    ).filter(Product.store_id == store_id)
     
     # 分類篩選
     if category_id:
@@ -37,20 +38,37 @@ def get_products(
         query = query.filter(Product.is_active == is_active)
     
     # 排序
-    if sort_by == "price":
-        # 價格排序改為使用 id（因為價格在變體中，無法直接排序）
-        # 如果需要價格排序，需要在應用層處理
-        order_by_col = Product.id
-    elif sort_by == "created_at":
-        # 如果 Product 有 created_at 欄位，使用它；否則使用 id
-        order_by_col = Product.id
-    else:  # 預設使用 id
-        order_by_col = Product.id
+    from sqlalchemy import func
     
-    if order == "asc":
-        query = query.order_by(order_by_col.asc())
-    else:
-        query = query.order_by(order_by_col.desc())
+    if sort_by == "price_max":
+        # 價格由高至低：依照商品的最高價排序
+        price_subquery = db.query(
+            ProductVariant.product_id,
+            func.max(ProductVariant.price).label("max_price")
+        ).group_by(ProductVariant.product_id).subquery()
+        query = query.outerjoin(price_subquery, Product.id == price_subquery.c.product_id)
+        if order == "asc":
+            query = query.order_by(price_subquery.c.max_price.asc(), Product.id.desc())
+        else:
+            query = query.order_by(price_subquery.c.max_price.desc(), Product.id.desc())
+    elif sort_by == "price_min":
+        # 價格由低至高：依照商品的最低價排序
+        price_subquery = db.query(
+            ProductVariant.product_id,
+            func.min(ProductVariant.price).label("min_price")
+        ).group_by(ProductVariant.product_id).subquery()
+        query = query.outerjoin(price_subquery, Product.id == price_subquery.c.product_id)
+        if order == "asc":
+            query = query.order_by(price_subquery.c.min_price.asc(), Product.id.desc())
+        else:
+            query = query.order_by(price_subquery.c.min_price.desc(), Product.id.desc())
+    elif sort_by == "id":
+        if order == "asc":
+            query = query.order_by(Product.id.asc())
+        else:
+            query = query.order_by(Product.id.desc())
+    else:  # 預設使用 id desc
+        query = query.order_by(Product.id.desc())
     
     # 分頁
     total = query.count()
@@ -110,7 +128,9 @@ def get_products(
         )
         
         product_dict = {
-            "id": product.id,
+            "id": product.sid,  # 前台顯示 sid
+            "sid": product.sid,
+            "internal_id": product.id,
             "name": product.name,
             "price_range": {
                 "min": min_price,
@@ -145,15 +165,15 @@ def get_products(
     }
 
 
-def get_product_by_id(db: Session, product_id: int, include_inactive: bool = False) -> dict:
-    """取得單一商品詳情"""
+def get_product_by_id(db: Session, store_id: int, sid: int, include_inactive: bool = False) -> dict:
+    """取得單一商品詳情（依據商店內流水號 sid）"""
     query = db.query(Product).options(
         joinedload(Product.category),
         joinedload(Product.images),
         joinedload(Product.spec_groups).joinedload(ProductSpecGroup.spec_values),
         joinedload(Product.variants).joinedload(ProductVariant.spec_value_1),
         joinedload(Product.variants).joinedload(ProductVariant.spec_value_2)
-    ).filter(Product.id == product_id)
+    ).filter(Product.store_id == store_id, Product.sid == sid)
     
     if not include_inactive:
         query = query.filter(Product.is_active == True)
@@ -217,7 +237,9 @@ def get_product_by_id(db: Session, product_id: int, include_inactive: bool = Fal
     )
     
     return {
-        "id": product.id,
+        "id": product.sid,  # 前台顯示 sid
+        "sid": product.sid,
+        "internal_id": product.id,
         "name": product.name,
         "price_range": {
             "min": min_price,
@@ -246,10 +268,13 @@ def get_product_by_id(db: Session, product_id: int, include_inactive: bool = Fal
 
 def search_products(
     db: Session,
+    store_id: int,
     keyword: str,
     category_id: Optional[int] = None,
     skip: int = 0,
-    limit: int = 20
+    limit: int = 20,
+    sort_by: str = "id",
+    order: str = "desc"
 ) -> dict:
     """搜尋商品（根據名稱或描述）"""
     query = db.query(Product).options(
@@ -258,6 +283,7 @@ def search_products(
         joinedload(Product.variants)
     ).filter(
         and_(
+            Product.store_id == store_id,
             Product.is_active == True,
             or_(
                 Product.name.contains(keyword),
@@ -268,6 +294,39 @@ def search_products(
     
     if category_id:
         query = query.filter(Product.category_id == category_id)
+        
+    # 排序
+    from sqlalchemy import func
+    
+    if sort_by == "price_max":
+        # 價格由高至低：依照商品的最高價排序
+        price_subquery = db.query(
+            ProductVariant.product_id,
+            func.max(ProductVariant.price).label("max_price")
+        ).group_by(ProductVariant.product_id).subquery()
+        query = query.outerjoin(price_subquery, Product.id == price_subquery.c.product_id)
+        if order == "asc":
+            query = query.order_by(price_subquery.c.max_price.asc(), Product.id.desc())
+        else:
+            query = query.order_by(price_subquery.c.max_price.desc(), Product.id.desc())
+    elif sort_by == "price_min":
+        # 價格由低至高：依照商品的最低價排序
+        price_subquery = db.query(
+            ProductVariant.product_id,
+            func.min(ProductVariant.price).label("min_price")
+        ).group_by(ProductVariant.product_id).subquery()
+        query = query.outerjoin(price_subquery, Product.id == price_subquery.c.product_id)
+        if order == "asc":
+            query = query.order_by(price_subquery.c.min_price.asc(), Product.id.desc())
+        else:
+            query = query.order_by(price_subquery.c.min_price.desc(), Product.id.desc())
+    elif sort_by == "id":
+        if order == "asc":
+            query = query.order_by(Product.id.asc())
+        else:
+            query = query.order_by(Product.id.desc())
+    else:  # 預設使用 id desc
+        query = query.order_by(Product.id.desc())
     
     total = query.count()
     products = query.offset(skip).limit(limit).all()
@@ -289,7 +348,9 @@ def search_products(
             price_display = "0"
         
         products_list.append({
-            "id": product.id,
+            "id": product.sid,  # 前台顯示 sid
+            "sid": product.sid,
+            "internal_id": product.id,
             "name": product.name,
             "price_range": {
                 "min": min_price,
@@ -314,11 +375,11 @@ def search_products(
     }
 
 
-def create_product(db: Session, product_data: ProductCreate) -> dict:
+def create_product(db: Session, store_id: int, product_data: ProductCreate) -> dict:
     """建立新商品（支援單層和兩層規格）"""
     try:
-        # 檢查分類是否存在
-        category = db.query(Category).filter(Category.id == product_data.category_id).first()
+        # 檢查分類是否存在且屬於同一店
+        category = db.query(Category).filter(Category.id == product_data.category_id, Category.store_id == store_id).first()
         if not category:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -328,8 +389,15 @@ def create_product(db: Session, product_data: ProductCreate) -> dict:
         # 計算變體庫存總和作為商品總庫存
         product_stock = sum(variant.stock for variant in product_data.variants)
         
+        # 取得該商店目前最大的 sid
+        from sqlalchemy import func
+        max_sid = db.query(func.max(Product.sid)).filter(Product.store_id == store_id).scalar()
+        next_sid = (max_sid or 0) + 1
+        
         # 建立商品
         new_product = Product(
+            store_id=store_id,
+            sid=next_sid,
             name=product_data.name,
             stock=product_stock,  # 總庫存 = 變體庫存總和
             description=product_data.description,
@@ -338,7 +406,7 @@ def create_product(db: Session, product_data: ProductCreate) -> dict:
         )
         
         db.add(new_product)
-        db.flush()  # 取得新商品的 ID
+        db.flush()  # 取得新商品的 ID (及 sid)
         
         # 建立商品圖片
         if product_data.images:
@@ -422,9 +490,9 @@ def create_product(db: Session, product_data: ProductCreate) -> dict:
         db.commit()
         db.refresh(new_product)
         
-        logger.info(f"建立商品成功：{new_product.name}")
+        logger.info(f"建立商品成功：{new_product.name} (sid: {new_product.sid})")
         
-        return get_product_by_id(db, new_product.id, include_inactive=True)
+        return get_product_by_id(db, store_id, new_product.sid, include_inactive=True)
     except HTTPException:
         db.rollback()
         raise
@@ -437,15 +505,13 @@ def create_product(db: Session, product_data: ProductCreate) -> dict:
         )
 
 
-def update_product(db: Session, product_id: int, product_data: ProductUpdate) -> dict:
-    """更新商品（stock 由變體庫存總和自動計算）
-    支援更新基本資訊和規格組/變體
-    """
+def update_product(db: Session, store_id: int, sid: int, product_data: ProductUpdate) -> dict:
+    """更新商品（依據商店內流水號 sid）"""
     try:
         product = db.query(Product).options(
             joinedload(Product.spec_groups).joinedload(ProductSpecGroup.spec_values),
             joinedload(Product.variants)
-        ).filter(Product.id == product_id).first()
+        ).filter(Product.store_id == store_id, Product.sid == sid).first()
         
         if not product:
             raise HTTPException(
@@ -476,7 +542,7 @@ def update_product(db: Session, product_id: int, product_data: ProductUpdate) ->
         
         # 如果更新了分類，檢查分類是否存在
         if "category_id" in update_data:
-            category = db.query(Category).filter(Category.id == product.category_id).first()
+            category = db.query(Category).filter(Category.id == product.category_id, Category.store_id == store_id).first()
             if not category:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -580,9 +646,9 @@ def update_product(db: Session, product_id: int, product_data: ProductUpdate) ->
         db.commit()
         db.refresh(product)
         
-        logger.info(f"更新商品成功：{product.name}")
+        logger.info(f"更新商品成功：{product.name} (sid: {product.sid})")
         
-        return get_product_by_id(db, product_id, include_inactive=True)
+        return get_product_by_id(db, store_id, sid, include_inactive=True)
     except HTTPException:
         db.rollback()
         raise
@@ -595,9 +661,9 @@ def update_product(db: Session, product_id: int, product_data: ProductUpdate) ->
         )
 
 
-def delete_product(db: Session, product_id: int) -> dict:
-    """刪除商品（完全刪除）"""
-    product = db.query(Product).filter(Product.id == product_id).first()
+def delete_product(db: Session, store_id: int, sid: int) -> dict:
+    """刪除商品（完全刪除，依據 sid）"""
+    product = db.query(Product).filter(Product.sid == sid, Product.store_id == store_id).first()
     if not product:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

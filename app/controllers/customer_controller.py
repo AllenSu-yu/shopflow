@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Optional
 from app import get_db
-from app.utils.auth_utils import get_current_user
+from app.utils.dependencies import get_store, get_current_store_customer
 from app.utils.validators import (
     CustomerRegister, CustomerLogin,
     OrderCreate,
@@ -28,6 +28,7 @@ from app.services import (
     create_order,
     get_orders_by_customer,
     get_order_by_id,
+    cancel_order,
     # CMS
     get_carousels,
     get_store_info
@@ -45,10 +46,10 @@ router = APIRouter()
 # ==================== 認證相關 ====================
 
 @router.post('/auth/register', status_code=status.HTTP_201_CREATED)
-def register(customer_data: CustomerRegister, db: Session = Depends(get_db)):
+def register(customer_data: CustomerRegister, store = Depends(get_store), db: Session = Depends(get_db)):
     """客戶註冊"""
     try:
-        return register_customer(db, customer_data)
+        return register_customer(db, store.id, customer_data)
     except HTTPException:
         raise
     except Exception as e:
@@ -60,10 +61,10 @@ def register(customer_data: CustomerRegister, db: Session = Depends(get_db)):
 
 
 @router.post('/auth/login')
-def login(login_data: CustomerLogin, db: Session = Depends(get_db)):
+def login(login_data: CustomerLogin, store = Depends(get_store), db: Session = Depends(get_db)):
     """客戶登入"""
     try:
-        return authenticate_customer(db, login_data)
+        return authenticate_customer(db, store.id, login_data)
     except HTTPException:
         raise
     except Exception as e:
@@ -76,7 +77,7 @@ def login(login_data: CustomerLogin, db: Session = Depends(get_db)):
 
 @router.get('/auth/me')
 def get_current_customer_info(
-    customer = Depends(get_current_user),
+    customer = Depends(get_current_store_customer),
     db: Session = Depends(get_db)
 ):
     """取得當前登入客戶資訊"""
@@ -92,7 +93,7 @@ def get_current_customer_info(
 # ==================== 分類相關 ====================
 
 @router.get('/categories')
-def get_categories(db: Session = Depends(get_db)):
+def get_categories(store = Depends(get_store), db: Session = Depends(get_db)):
     """取得所有分類（僅顯示生效的分類，並依照排序顯示）"""
     try:
         # 只取得 is_active=True 的分類
@@ -101,6 +102,7 @@ def get_categories(db: Session = Depends(get_db)):
         # 2. sort_order 為 null 的分類排在後面，按 id 排序
         from sqlalchemy import func, case
         categories = db.query(Category)\
+            .filter(Category.store_id == store.id)\
             .filter(Category.is_active == True)\
             .order_by(
                 case((Category.sort_order.is_(None), 999999), else_=Category.sort_order).asc(),
@@ -134,6 +136,7 @@ def get_categories(db: Session = Depends(get_db)):
 
 @router.get('/products')
 def get_products(
+    store = Depends(get_store),
     category_id: Optional[int] = None,
     skip: int = 0,
     limit: int = 20,
@@ -144,6 +147,7 @@ def get_products(
     """取得商品列表（僅顯示啟用商品）"""
     result = get_products_service(
         db=db,
+        store_id=store.id,
         category_id=category_id,
         is_active=True,  # 前台只顯示啟用商品
         skip=skip,
@@ -165,13 +169,25 @@ def get_products(
 @router.get('/products/search')
 def search_products_route(
     keyword: str,
+    store = Depends(get_store),
     category_id: Optional[int] = None,
     skip: int = 0,
     limit: int = 20,
+    sort_by: str = "id",
+    order: str = "desc",
     db: Session = Depends(get_db)
 ):
     """搜尋商品"""
-    result = search_products(db, keyword, category_id, skip, limit)
+    result = search_products(
+        db=db,
+        store_id=store.id,
+        keyword=keyword,
+        category_id=category_id,
+        skip=skip,
+        limit=limit,
+        sort_by=sort_by,
+        order=order
+    )
     
     # 處理圖片 URL
     for product in result["products"]:
@@ -182,9 +198,9 @@ def search_products_route(
 
 
 @router.get('/products/{product_id}')
-def get_product(product_id: int, db: Session = Depends(get_db)):
+def get_product(product_id: int, store = Depends(get_store), db: Session = Depends(get_db)):
     """取得商品詳情"""
-    result = get_product_by_id(db, product_id, include_inactive=False)
+    result = get_product_by_id(db, store.id, product_id, include_inactive=False)
     
     # 處理圖片 URL
     for img in result["images"]:
@@ -201,12 +217,12 @@ def get_product(product_id: int, db: Session = Depends(get_db)):
 
 @router.get('/cart')
 def get_cart(
-    customer = Depends(get_current_user),
+    customer = Depends(get_current_store_customer),
     db: Session = Depends(get_db)
 ):
     """取得購物車"""
-    cart = get_or_create_cart(db, customer.id)
-    result = get_cart_details(db, cart.id)
+    cart = get_or_create_cart(db, customer.store_id, customer.id)
+    result = get_cart_details(db, customer.store_id, cart.id)
     
     # 處理圖片 URL
     for item in result["items"]:
@@ -219,11 +235,11 @@ def get_cart(
 @router.post('/cart/items/batch', status_code=status.HTTP_201_CREATED)
 def add_items_to_cart_batch(
     batch_data: CartItemBatchCreate,
-    customer = Depends(get_current_user),
+    customer = Depends(get_current_store_customer),
     db: Session = Depends(get_db)
 ):
     """批次添加商品到購物車（可一次加入多個商品／多個規格與數量）"""
-    result = add_to_cart_batch(db, customer.id, batch_data)
+    result = add_to_cart_batch(db, customer.store_id, customer.id, batch_data)
     for item in result["items"]:
         if item.get("primary_image"):
             item["primary_image"] = get_file_url(item["primary_image"])
@@ -233,11 +249,11 @@ def add_items_to_cart_batch(
 @router.post('/cart/items', status_code=status.HTTP_201_CREATED)
 def add_item_to_cart(
     item_data: CartItemCreate,
-    customer = Depends(get_current_user),
+    customer = Depends(get_current_store_customer),
     db: Session = Depends(get_db)
 ):
     """添加單一商品到購物車"""
-    result = add_to_cart(db, customer.id, item_data)
+    result = add_to_cart(db, customer.store_id, customer.id, item_data)
     for item in result["items"]:
         if item.get("primary_image"):
             item["primary_image"] = get_file_url(item["primary_image"])
@@ -248,11 +264,11 @@ def add_item_to_cart(
 def update_cart_item_route(
     item_id: int,
     item_data: CartItemUpdate,
-    customer = Depends(get_current_user),
+    customer = Depends(get_current_store_customer),
     db: Session = Depends(get_db)
 ):
     """更新購物車項目數量"""
-    result = update_cart_item(db, customer.id, item_id, item_data)
+    result = update_cart_item(db, customer.store_id, customer.id, item_id, item_data)
     
     # 處理圖片 URL
     for item in result["items"]:
@@ -265,11 +281,11 @@ def update_cart_item_route(
 @router.delete('/cart/items/{item_id}')
 def remove_item_from_cart(
     item_id: int,
-    customer = Depends(get_current_user),
+    customer = Depends(get_current_store_customer),
     db: Session = Depends(get_db)
 ):
     """從購物車移除項目"""
-    result = remove_from_cart(db, customer.id, item_id)
+    result = remove_from_cart(db, customer.store_id, customer.id, item_id)
     
     # 處理圖片 URL
     for item in result["items"]:
@@ -281,11 +297,11 @@ def remove_item_from_cart(
 
 @router.delete('/cart')
 def clear_cart_route(
-    customer = Depends(get_current_user),
+    customer = Depends(get_current_store_customer),
     db: Session = Depends(get_db)
 ):
     """清空購物車"""
-    return clear_cart(db, customer.id)
+    return clear_cart(db, customer.store_id, customer.id)
 
 
 # ==================== 訂單相關 ====================
@@ -293,40 +309,59 @@ def clear_cart_route(
 @router.post('/orders', status_code=status.HTTP_201_CREATED)
 def create_order_route(
     order_data: OrderCreate,
-    customer = Depends(get_current_user),
+    customer = Depends(get_current_store_customer),
     db: Session = Depends(get_db)
 ):
     """建立訂單"""
-    return create_order(db, customer.id, order_data)
+    return create_order(db, customer.store_id, customer.id, order_data)
 
 
 @router.get('/orders')
 def get_my_orders(
     skip: int = 0,
     limit: int = 20,
-    customer = Depends(get_current_user),
+    customer = Depends(get_current_store_customer),
     db: Session = Depends(get_db)
 ):
     """取得我的訂單列表"""
-    return get_orders_by_customer(db, customer.id, skip, limit)
+    return get_orders_by_customer(db, customer.store_id, customer.id, skip, limit)
 
 
 @router.get('/orders/{order_id}')
 def get_my_order(
     order_id: int,
-    customer = Depends(get_current_user),
+    customer = Depends(get_current_store_customer),
     db: Session = Depends(get_db)
 ):
     """取得訂單詳情"""
-    return get_order_by_id(db, order_id, customer_id=customer.id)
+    return get_order_by_id(db, customer.store_id, order_id, customer_id=customer.id)
+
+
+@router.post('/orders/{order_id}/cancel')
+def cancel_my_order(
+    order_id: int,
+    customer = Depends(get_current_store_customer),
+    db: Session = Depends(get_db)
+):
+    """取消訂單"""
+    try:
+        return cancel_order(db, customer.store_id, order_id, customer_id=customer.id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"取消訂單失敗：{str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="取消訂單失敗"
+        )
 
 
 # ==================== CMS 相關 ====================
 
 @router.get('/carousels')
-def get_carousels_route(db: Session = Depends(get_db)):
+def get_carousels_route(store = Depends(get_store), db: Session = Depends(get_db)):
     """取得輪播圖列表（僅顯示啟用）"""
-    carousels = get_carousels(db, is_active=True)
+    carousels = get_carousels(db, store.id, is_active=True)
     
     # 處理圖片 URL，使用 updated_at 作為版本號以強制刷新 CDN 快取
     for carousel in carousels:
@@ -340,9 +375,9 @@ def get_carousels_route(db: Session = Depends(get_db)):
 
 
 @router.get('/store-info')
-def get_store_info_route(db: Session = Depends(get_db)):
+def get_store_info_route(store = Depends(get_store), db: Session = Depends(get_db)):
     """取得商店資訊"""
-    result = get_store_info(db)
+    result = get_store_info(db, store.id)
     
     # 處理圖片 URL
     if result.get("logo_url"):

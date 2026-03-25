@@ -10,12 +10,12 @@ import json
 logger = logging.getLogger(__name__)
 
 
-def get_or_create_cart(db: Session, customer_id: int) -> Cart:
+def get_or_create_cart(db: Session, store_id: int, customer_id: int) -> Cart:
     """取得或建立購物車"""
-    cart = db.query(Cart).filter(Cart.customer_id == customer_id).first()
+    cart = db.query(Cart).filter(Cart.customer_id == customer_id, Cart.store_id == store_id).first()
     
     if not cart:
-        cart = Cart(customer_id=customer_id)
+        cart = Cart(customer_id=customer_id, store_id=store_id)
         db.add(cart)
         db.commit()
         db.refresh(cart)
@@ -24,16 +24,17 @@ def get_or_create_cart(db: Session, customer_id: int) -> Cart:
     return cart
 
 
-def add_to_cart(db: Session, customer_id: int, item_data: CartItemCreate) -> dict:
+def add_to_cart(db: Session, store_id: int, customer_id: int, item_data: CartItemCreate) -> dict:
     """添加商品到購物車"""
     # 取得或建立購物車
-    cart = get_or_create_cart(db, customer_id)
+    cart = get_or_create_cart(db, store_id, customer_id)
     
-    # 檢查商品是否存在且啟用
+    # 檢查商品是否存在且啟用（這時傳進來的 product_id 是 sid）
     product = db.query(Product).options(
         joinedload(Product.variants)
     ).filter(
-        Product.id == item_data.product_id,
+        Product.sid == item_data.product_id,
+        Product.store_id == store_id,
         Product.is_active == True
     ).first()
     
@@ -81,10 +82,10 @@ def add_to_cart(db: Session, customer_id: int, item_data: CartItemCreate) -> dic
             detail="規格資訊格式錯誤"
         )
     
-    # 檢查購物車中是否已有相同商品和規格
+    # 檢查購物車中是否已有相同商品和規格（這裡需要使用商品的真實 ID）
     existing_item = db.query(CartItem).filter(
         CartItem.cart_id == cart.id,
-        CartItem.product_id == item_data.product_id,
+        CartItem.product_id == product.id,
         CartItem.spec_info == item_data.spec_info
     ).first()
     
@@ -101,32 +102,32 @@ def add_to_cart(db: Session, customer_id: int, item_data: CartItemCreate) -> dic
         db.refresh(existing_item)
         logger.info(f"更新購物車項目數量：{existing_item.id}")
     else:
-        # 建立新項目
+        # 建立新項目（使用商品的真實 ID）
         new_item = CartItem(
             cart_id=cart.id,
-            product_id=item_data.product_id,
+            product_id=product.id,
             quantity=item_data.quantity,
             spec_info=item_data.spec_info
         )
         db.add(new_item)
         db.commit()
         db.refresh(new_item)
-        logger.info(f"添加商品到購物車：{item_data.product_id}")
+        logger.info(f"添加商品到購物車：商品 ID {product.id} (sid: {product.sid})")
     
-    return get_cart_details(db, cart.id)
+    return get_cart_details(db, store_id, cart.id)
 
 
-def add_to_cart_batch(db: Session, customer_id: int, batch_data: CartItemBatchCreate) -> dict:
+def add_to_cart_batch(db: Session, store_id: int, customer_id: int, batch_data: CartItemBatchCreate) -> dict:
     """批次添加商品到購物車，一次請求可加入多個商品／多個規格與數量"""
     result = None
     for item in batch_data.items:
-        result = add_to_cart(db, customer_id, item)
+        result = add_to_cart(db, store_id, customer_id, item)
     return result
 
 
-def update_cart_item(db: Session, customer_id: int, item_id: int, item_data: CartItemUpdate) -> dict:
+def update_cart_item(db: Session, store_id: int, customer_id: int, item_id: int, item_data: CartItemUpdate) -> dict:
     """更新購物車項目數量"""
-    cart = get_or_create_cart(db, customer_id)
+    cart = get_or_create_cart(db, store_id, customer_id)
     
     cart_item = db.query(CartItem).filter(
         CartItem.id == item_id,
@@ -139,10 +140,13 @@ def update_cart_item(db: Session, customer_id: int, item_id: int, item_data: Car
             detail="購物車項目不存在"
         )
     
-    # 檢查庫存
+    # 檢查庫存（確保商品屬於該商店）
     product = db.query(Product).options(
         joinedload(Product.variants)
-    ).filter(Product.id == cart_item.product_id).first()
+    ).filter(
+        Product.id == cart_item.product_id,
+        Product.store_id == store_id
+    ).first()
     
     # 必須有規格資訊才能確定庫存
     if not cart_item.spec_info:
@@ -186,12 +190,12 @@ def update_cart_item(db: Session, customer_id: int, item_id: int, item_data: Car
     
     logger.info(f"更新購物車項目：{item_id}")
     
-    return get_cart_details(db, cart.id)
+    return get_cart_details(db, store_id, cart.id)
 
 
-def remove_from_cart(db: Session, customer_id: int, item_id: int) -> dict:
+def remove_from_cart(db: Session, store_id: int, customer_id: int, item_id: int) -> dict:
     """從購物車移除項目"""
-    cart = get_or_create_cart(db, customer_id)
+    cart = get_or_create_cart(db, store_id, customer_id)
     
     cart_item = db.query(CartItem).filter(
         CartItem.id == item_id,
@@ -209,12 +213,12 @@ def remove_from_cart(db: Session, customer_id: int, item_id: int) -> dict:
     
     logger.info(f"移除購物車項目：{item_id}")
     
-    return get_cart_details(db, cart.id)
+    return get_cart_details(db, store_id, cart.id)
 
 
-def clear_cart(db: Session, customer_id: int) -> dict:
+def clear_cart(db: Session, store_id: int, customer_id: int) -> dict:
     """清空購物車"""
-    cart = get_or_create_cart(db, customer_id)
+    cart = get_or_create_cart(db, store_id, customer_id)
     
     db.query(CartItem).filter(CartItem.cart_id == cart.id).delete()
     db.commit()
@@ -226,13 +230,20 @@ def clear_cart(db: Session, customer_id: int) -> dict:
 
 def get_cart_total(db: Session, cart_id: int) -> float:
     """計算購物車總金額"""
+    cart = db.query(Cart).filter(Cart.id == cart_id).first()
+    if not cart:
+        return 0.0
+    
     cart_items = db.query(CartItem).filter(CartItem.cart_id == cart_id).all()
     
     total = 0.0
     for item in cart_items:
         product = db.query(Product).options(
             joinedload(Product.variants)
-        ).filter(Product.id == item.product_id).first()
+        ).filter(
+            Product.id == item.product_id,
+            Product.store_id == cart.store_id
+        ).first()
         if product:
             # 必須有規格資訊才能確定價格
             if not item.spec_info:
@@ -272,9 +283,9 @@ def get_cart_total(db: Session, cart_id: int) -> float:
     return total
 
 
-def get_cart_details(db: Session, cart_id: int) -> dict:
+def get_cart_details(db: Session, store_id: int, cart_id: int) -> dict:
     """取得購物車詳情"""
-    cart = db.query(Cart).filter(Cart.id == cart_id).first()
+    cart = db.query(Cart).filter(Cart.id == cart_id, Cart.store_id == store_id).first()
     if not cart:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -288,7 +299,10 @@ def get_cart_details(db: Session, cart_id: int) -> dict:
         product = db.query(Product).options(
             joinedload(Product.images),
             joinedload(Product.variants)
-        ).filter(Product.id == item.product_id).first()
+        ).filter(
+            Product.id == item.product_id,
+            Product.store_id == store_id
+        ).first()
         if product:
             # 必須有規格資訊才能確定價格
             if not item.spec_info:
@@ -336,7 +350,9 @@ def get_cart_details(db: Session, cart_id: int) -> dict:
             
             items_list.append({
                 "id": item.id,
-                "product_id": product.id,
+                "product_id": product.sid,  # 返回 sid 給前端
+                "sid": product.sid,
+                "internal_product_id": product.id,
                 "product_name": product.name,
                 "product_price": price,
                 "quantity": item.quantity,

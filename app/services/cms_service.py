@@ -10,9 +10,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def get_carousels(db: Session, is_active: bool = True) -> List[dict]:
+def get_carousels(db: Session, store_id: int, is_active: bool = True) -> List[dict]:
     """取得輪播圖列表"""
-    query = db.query(Carousel)
+    query = db.query(Carousel).filter(Carousel.store_id == store_id)
     
     if is_active:
         query = query.filter(Carousel.is_active == True)
@@ -34,12 +34,13 @@ def get_carousels(db: Session, is_active: bool = True) -> List[dict]:
     ]
 
 
-def create_carousel(db: Session, carousel_data: CarouselCreate) -> dict:
+def create_carousel(db: Session, store_id: int, carousel_data: CarouselCreate) -> dict:
     """建立輪播圖"""
     # 檢查 display_order 是否重複（如果提供了 display_order）
     if carousel_data.display_order is not None:
         existing_carousel = db.query(Carousel).filter(
-            Carousel.display_order == carousel_data.display_order
+            Carousel.display_order == carousel_data.display_order,
+            Carousel.store_id == store_id
         ).first()
         if existing_carousel:
             raise HTTPException(
@@ -48,6 +49,7 @@ def create_carousel(db: Session, carousel_data: CarouselCreate) -> dict:
             )
     
     new_carousel = Carousel(
+        store_id=store_id,
         title=carousel_data.title,
         image_url=carousel_data.image_url,
         link_url=carousel_data.link_url,
@@ -73,14 +75,12 @@ def create_carousel(db: Session, carousel_data: CarouselCreate) -> dict:
     }
 
 
-def update_carousel(db: Session, carousel_id: int, update_dict: dict) -> dict:
-    """更新輪播圖（支援部分更新）
-    
-    update_dict: 純 dict，只包含要更新的欄位
-    - 不包含 image_url 時：不更新圖片，不刪除原圖
-    - 包含 image_url 時：更新圖片，刪除舊圖
-    """
-    carousel = db.query(Carousel).filter(Carousel.id == carousel_id).first()
+def update_carousel(db: Session, store_id: int, carousel_id: int, update_dict: dict) -> dict:
+    """更新輪播圖（支援部分更新）"""
+    carousel = db.query(Carousel).filter(
+        Carousel.id == carousel_id,
+        Carousel.store_id == store_id
+    ).first()
     
     if not carousel:
         raise HTTPException(
@@ -96,6 +96,7 @@ def update_carousel(db: Session, carousel_id: int, update_dict: dict) -> dict:
     if "display_order" in fields_to_update and fields_to_update["display_order"] is not None:
         existing = db.query(Carousel).filter(
             Carousel.display_order == fields_to_update["display_order"],
+            Carousel.store_id == store_id,
             Carousel.id != carousel_id
         ).first()
         if existing:
@@ -125,14 +126,14 @@ def update_carousel(db: Session, carousel_id: int, update_dict: dict) -> dict:
     }
 
 
-def get_carousel_by_id(db: Session, carousel_id: int):
+def get_carousel_by_id(db: Session, store_id: int, carousel_id: int):
     """取得單一輪播圖"""
-    return db.query(Carousel).filter(Carousel.id == carousel_id).first()
+    return db.query(Carousel).filter(Carousel.id == carousel_id, Carousel.store_id == store_id).first()
 
 
-def delete_carousel(db: Session, carousel_id: int) -> dict:
+def delete_carousel(db: Session, store_id: int, carousel_id: int) -> dict:
     """刪除輪播圖"""
-    carousel = db.query(Carousel).filter(Carousel.id == carousel_id).first()
+    carousel = db.query(Carousel).filter(Carousel.id == carousel_id, Carousel.store_id == store_id).first()
     
     if not carousel:
         raise HTTPException(
@@ -152,13 +153,14 @@ def delete_carousel(db: Session, carousel_id: int) -> dict:
     return {"message": "輪播圖已刪除"}
 
 
-def get_store_info(db: Session) -> dict:
+def get_store_info(db: Session, store_id: int) -> dict:
     """取得商店資訊"""
-    store_info = db.query(StoreInfo).first()
+    store_info = db.query(StoreInfo).filter(StoreInfo.store_id == store_id).first()
     
     if not store_info:
         # 如果不存在，建立預設值
         store_info = StoreInfo(
+            store_id=store_id,
             store_name="ShopFlow",
             store_description="歡迎來到 ShopFlow 購物平台"
         )
@@ -183,13 +185,13 @@ def get_store_info(db: Session) -> dict:
     }
 
 
-def update_store_info(db: Session, store_data: StoreInfoUpdate) -> dict:
+def update_store_info(db: Session, store_id: int, store_data: StoreInfoUpdate) -> dict:
     """更新商店資訊"""
-    store_info = db.query(StoreInfo).first()
+    store_info = db.query(StoreInfo).filter(StoreInfo.store_id == store_id).first()
     
     if not store_info:
         # 如果不存在，建立新的
-        store_info = StoreInfo()
+        store_info = StoreInfo(store_id=store_id)
         db.add(store_info)
     
     # 如果更新 Logo，刪除舊 Logo
@@ -213,4 +215,4 @@ def update_store_info(db: Session, store_data: StoreInfoUpdate) -> dict:
     
     logger.info("更新商店資訊成功")
     
-    return get_store_info(db)
+    return get_store_info(db, store_id)

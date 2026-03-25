@@ -1,14 +1,18 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app import Base
 
 class Cart(Base):
-    """購物車（每個客戶一個購物車）"""
+    """購物車（每個跨店客戶都會有不同的購物車，因為客戶本身也是隔離的，這裡我們加上 store_id 以加速查詢與驗證）"""
     __tablename__ = 'carts'
+    __table_args__ = (
+        UniqueConstraint('store_id', 'customer_id', name='uq_store_cart_customer'),
+    )
     
     id = Column(Integer, primary_key=True)
-    customer_id = Column(Integer, ForeignKey('customers.id'), nullable=False, unique=True)
+    store_id = Column(Integer, ForeignKey('stores.id'), nullable=False, index=True)
+    customer_id = Column(Integer, ForeignKey('customers.id'), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

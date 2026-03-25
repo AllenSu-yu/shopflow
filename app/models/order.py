@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Enum as SQLEnum, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -7,22 +7,26 @@ from app import Base
 class OrderStatus(enum.Enum):
     """訂單狀態枚舉"""
     PENDING = "pending"  # 待處理
-    CONFIRMED = "confirmed"  # 已確認
-    PROCESSING = "processing"  # 處理中
+    PAID = "paid"  # 已付款
     SHIPPED = "shipped"  # 已出貨
-    DELIVERED = "delivered"  # 已送達
     CANCELLED = "cancelled"  # 已取消
-    REFUNDED = "refunded"  # 已退款
 
 class Order(Base):
     __tablename__ = 'orders'
+    __table_args__ = (
+        UniqueConstraint('store_id', 'order_number', name='uq_store_order_number'),
+    )
     
     id = Column(Integer, primary_key=True)
-    order_number = Column(String(50), nullable=False, unique=True)  # 訂單編號
+    store_id = Column(Integer, ForeignKey('stores.id'), nullable=False, index=True)
+    order_number = Column(String(50), nullable=False)  # 訂單編號
     customer_id = Column(Integer, ForeignKey('customers.id'), nullable=False)
     
     # 訂單狀態
     status = Column(SQLEnum(OrderStatus), default=OrderStatus.PENDING, nullable=False)
+    
+    # 支付紀錄 ID (用於 TapPay 退款)
+    payment_rec_id = Column(String(100), nullable=True)
     
     # 金額資訊
     subtotal = Column(Float, nullable=False, default=0.0)  # 小計

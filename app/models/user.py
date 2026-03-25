@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app import Base
@@ -8,23 +8,29 @@ class User(Base):
     __tablename__ = 'users'
     
     id = Column(Integer, primary_key=True)
-    username = Column(String(50), nullable=False, unique=True)
-    email = Column(String(100), nullable=False, unique=True)
+    store_id = Column(Integer, ForeignKey('stores.id'), nullable=False, index=True)
+    email = Column(String(100), nullable=False, unique=True, index=True)  # 全域唯一，用於統一登入入口
     password_hash = Column(String(255), nullable=False)  # 加密後的密碼
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def __repr__(self):
-        return f'<User {self.username}>'
+        return f'<User {self.email}>'
 
 
 class Customer(Base):
     """前台客戶"""
     __tablename__ = 'customers'
+    __table_args__ = (
+        UniqueConstraint('store_id', 'email', name='uq_store_customer_email'),
+        UniqueConstraint('store_id', 'member_number', name='uq_store_customer_member_number'),
+    )
     
     id = Column(Integer, primary_key=True)
-    email = Column(String(100), nullable=False, unique=True)
+    store_id = Column(Integer, ForeignKey('stores.id'), nullable=False, index=True)
+    member_number = Column(Integer, nullable=True) # 會員編號，商店內唯一，從1開始
+    email = Column(String(100), nullable=False)
     password_hash = Column(String(255), nullable=False)  # 加密後的密碼
     name = Column(String(50), nullable=False)
     phone = Column(String(20), nullable=True)

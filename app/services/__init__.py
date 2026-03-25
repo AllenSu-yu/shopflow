@@ -26,7 +26,8 @@ from .order_service import (
     get_orders_by_customer,
     get_order_by_id,
     update_order_status,
-    generate_order_number
+    generate_order_number,
+    cancel_order
 )
 from .cms_service import (
     get_carousels,
@@ -37,6 +38,7 @@ from .cms_service import (
     get_store_info,
     update_store_info
 )
+from .store_service import register_store, get_store_by_slug
 
 __all__ = [
     # Auth service
@@ -65,6 +67,7 @@ __all__ = [
     'get_order_by_id',
     'update_order_status',
     'generate_order_number',
+    'cancel_order',
     # CMS service
     'get_carousels',
     'get_carousel_by_id',
@@ -73,4 +76,7 @@ __all__ = [
     'delete_carousel',
     'get_store_info',
     'update_store_info',
+    # Store service
+    'register_store',
+    'get_store_by_slug'
 ]
