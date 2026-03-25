@@ -65,10 +65,32 @@ templates_dir = os.path.join(os.path.dirname(__file__), "templates")
 templates = Jinja2Templates(directory=templates_dir)
 
 # 註冊路由（必須在 get_db 定義之後，避免循環導入）
-from .controllers import admin_router, customer_router, page_controller
-app.include_router(customer_router, prefix="/api", tags=["customer"])
-app.include_router(admin_router, prefix="/api/admin", tags=["admin"])
-app.include_router(page_controller.router, tags=["pages"])
+from .controllers import (
+    admin_router,
+    customer_router,
+    page_router,
+    merchant_router,
+    global_router,
+    admin_global_router
+)
+
+# 全局 API（例如：商店註冊 /api/merchant/register）
+app.include_router(global_router, prefix="/api", tags=["global"])
+
+# 全局頁面 (例如: /merchant/register)
+app.include_router(merchant_router, prefix="/merchant", tags=["global_pages"])
+
+# 全局後台頁面 (例如: /shop/admin/login)
+app.include_router(admin_global_router, prefix="/shop/admin", tags=["admin_global_pages"])
+
+# 前台 API (綁定特定商店 /api/shop/{store_slug}/...)
+app.include_router(customer_router, prefix="/api/shop/{store_slug}", tags=["customer"])
+
+# 後台 API (綁定特定商店 /api/shop/{store_slug}/admin/...)
+app.include_router(admin_router, prefix="/api/shop/{store_slug}/admin", tags=["admin"])
+
+# 頁面路由 (前台: /shop/{store_slug}/... , 後台: /shop/{store_slug}/admin/...)
+app.include_router(page_router, prefix="/shop/{store_slug}", tags=["pages"])
 
 # 應用啟動時初始化資料庫（建立資料表）
 @app.on_event("startup")

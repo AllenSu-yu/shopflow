@@ -5,106 +5,285 @@
 {% block page_title %}訂單管理{% endblock %}
 
 {% block admin_content %}
-<div class="mb-4">
-    <h4 class="mb-0">訂單列表</h4>
-    <small class="text-muted">管理所有訂單資訊</small>
+<div class="mb-4 d-flex justify-content-between align-items-center">
+    <div>
+        <h4 class="mb-0">訂單列表</h4>
+        <small class="text-muted">管理所有消費者的訂單資訊</small>
+    </div>
+</div>
+
+<!-- 篩選器 -->
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-2">
+                <label class="form-label small">訂單編號</label>
+                <input type="text" class="form-control form-control-sm filter-input" id="filter-order-id" placeholder="完全符合">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">會員編號</label>
+                <input type="text" class="form-control form-control-sm filter-input" id="filter-member-id" placeholder="完全符合">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">客戶姓名</label>
+                <input type="text" class="form-control form-control-sm filter-input" id="filter-customer-name" placeholder="模糊查詢">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">訂購日期</label>
+                <input type="date" class="form-control form-control-sm filter-input" id="filter-date">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">訂單狀態</label>
+                <select class="form-select form-select-sm filter-input" id="filter-status">
+                    <option value="">全部狀態</option>
+                    <option value="pending">待處理</option>
+                    <option value="paid">已付款</option>
+                    <option value="shipped">已出貨</option>
+                    <option value="cancelled">已取消</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end gap-2">
+                <button type="button" class="btn btn-primary btn-sm flex-grow-1" onclick="loadOrders()">
+                    <i class="bi bi-search"></i> 篩選
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetFilters()">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="card shadow-sm">
-    <div class="card-body">
+    <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover table-striped">
-                <thead class="table-dark">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
                     <tr>
-                        <th>訂單編號</th>
-                        <th>客戶</th>
-                        <th>總金額</th>
-                        <th>狀態</th>
+                        <th class="ps-4">訂單編號</th>
+                        <th>會員編號</th>
+                        <th>客戶姓名</th>
                         <th>訂購日期</th>
-                        <th>操作</th>
+                        <th>金額</th>
+                        <th>訂單狀態</th>
+                        <th class="pe-4 text-end">操作</th>
                     </tr>
                 </thead>
                 <tbody id="orders-table">
-                    <!-- 訂單列表將由 JavaScript 動態載入 -->
+                    <tr>
+                        <td colspan="7" class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>
     </div>
 </div>
+
+<!-- 出貨彈窗 -->
+<div class="modal fade" id="shippingModal" tabindex="-1" aria-labelledby="shippingModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="shippingModalLabel">訂單出貨</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="shippingForm">
+                    <input type="hidden" id="ship-order-id">
+                    <div class="mb-3">
+                        <label for="tracking-number" class="form-label">貨運單編號</label>
+                        <input type="text" class="form-control" id="tracking-number" required placeholder="請輸入物流追蹤號碼">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="submitShipping()">確認出貨</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .status-badge {
+        min-width: 80px;
+        text-align: center;
+    }
+</style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    checkAdminAuth();
-    loadOrders();
-});
+    let shippingModal;
 
-function checkAdminAuth() {
-    const token = localStorage.getItem('admin_token');
-    if (!token) {
-        window.location.href = '/admin/login';
-    }
-}
+    document.addEventListener('DOMContentLoaded', function () {
+        loadOrders();
+        shippingModal = new bootstrap.Modal(document.getElementById('shippingModal'));
 
-async function loadOrders() {
-    const token = localStorage.getItem('admin_token');
-    try {
-        const response = await fetch('/api/admin/orders', {
-            headers: { 'Authorization': `Bearer ${token}` }
+        // 監聽 Enter 鍵觸發篩選
+        document.querySelectorAll('.filter-input').forEach(input => {
+            input.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') {
+                    loadOrders();
+                }
+            });
         });
-        const orders = await response.json();
-        
-        document.getElementById('orders-table').innerHTML = orders.map(order => `
-            <tr>
-                <td>#${order.id}</td>
-                <td>${order.customer?.name || '-'}</td>
-                <td>NT$ ${order.total_amount}</td>
-                <td>
-                    <select class="form-select form-select-sm" onchange="updateOrderStatus(${order.id}, this.value)">
-                        <option value="pending" ${order.status === 'pending' ? 'selected' : ''}>待處理</option>
-                        <option value="processing" ${order.status === 'processing' ? 'selected' : ''}>處理中</option>
-                        <option value="shipped" ${order.status === 'shipped' ? 'selected' : ''}>已出貨</option>
-                        <option value="completed" ${order.status === 'completed' ? 'selected' : ''}>已完成</option>
-                        <option value="cancelled" ${order.status === 'cancelled' ? 'selected' : ''}>已取消</option>
-                    </select>
-                </td>
-                <td>${new Date(order.created_at).toLocaleString('zh-TW')}</td>
-                <td>
-                    <button class="btn btn-sm btn-primary" onclick="viewOrder(${order.id})">查看詳情</button>
-                </td>
-            </tr>
-        `).join('');
-    } catch (error) {
-        console.error('載入訂單失敗:', error);
-    }
-}
+    });
 
-async function updateOrderStatus(orderId, status) {
-    const token = localStorage.getItem('admin_token');
-    try {
-        const response = await fetch(`/api/admin/orders/${orderId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ status })
-        });
+    function resetFilters() {
+        document.getElementById('filter-order-id').value = '';
+        document.getElementById('filter-member-id').value = '';
+        document.getElementById('filter-customer-name').value = '';
+        document.getElementById('filter-date').value = '';
+        document.getElementById('filter-status').value = '';
+        loadOrders();
+    }
+
+    async function loadOrders() {
+        const token = localStorage.getItem('admin_token');
         
-        if (response.ok) {
-            alert('更新成功');
-            loadOrders();
-        } else {
-            alert('更新失敗');
+        // 取得篩選值
+        const orderNumber = document.getElementById('filter-order-id').value.trim();
+        const memberNumber = document.getElementById('filter-member-id').value.trim();
+        const customerName = document.getElementById('filter-customer-name').value.trim();
+        const orderDate = document.getElementById('filter-date').value;
+        const status = document.getElementById('filter-status').value;
+
+        // 構建查詢參數
+        const params = new URLSearchParams();
+        if (orderNumber) params.append('order_number', orderNumber);
+        if (memberNumber) params.append('member_number', memberNumber);
+        if (customerName) params.append('customer_name', customerName);
+        if (orderDate) params.append('order_date', orderDate);
+        if (status) params.append('status', status);
+
+        const url = `/api/shop/{{ store.slug }}/admin/orders?${params.toString()}`;
+
+        try {
+            document.getElementById('orders-table').innerHTML = `
+                <tr><td colspan="7" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </td></tr>
+            `;
+
+            const response = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!response.ok) {
+                if (response.status === 401) {
+                    window.location.href = '/shop/admin/login';
+                    return;
+                }
+                throw new Error('無法取得訂單資料');
+            }
+
+            const data = await response.json();
+            const orders = data.orders || [];
+
+            if (orders.length === 0) {
+                document.getElementById('orders-table').innerHTML = `
+                <tr><td colspan="7" class="text-center py-5 text-muted">查無相符訂單</td></tr>
+            `;
+                return;
+            }
+
+            const statusMap = {
+                'pending': { label: '待處理', class: 'bg-warning text-dark' },
+                'paid': { label: '已付款', class: 'bg-info text-white' },
+                'shipped': { label: '已出貨', class: 'bg-success text-white' },
+                'cancelled': { label: '已取消', class: 'bg-secondary text-white' }
+            };
+
+            document.getElementById('orders-table').innerHTML = orders.map(order => {
+                const dateStr = new Date(order.created_at + "Z").toLocaleString('zh-TW');
+                const statusInfo = statusMap[order.status] || { label: order.status, class: 'bg-light text-dark' };
+
+                return `
+                <tr>
+                    <td class="ps-4 fw-bold">#${order.order_number}</td>
+                    <td>${order.customer_member_number || '-'}</td>
+                    <td>${order.customer_name || '訪客'}</td>
+                    <td>${dateStr}</td>
+                    <td class="text-danger fw-bold">NT$ ${order.total}</td>
+                    <td>
+                        <span class="badge ${statusInfo.class} status-badge">
+                            ${statusInfo.label}
+                        </span>
+                    </td>
+                    <td class="pe-4 text-end">
+                        ${order.status === 'paid' ? `
+                            <button class="btn btn-sm btn-success me-1" onclick="openShippingModal(${order.id})">
+                                出貨
+                            </button>
+                        ` : ''}
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewOrder(${order.id})">
+                            詳情
+                        </button>
+                    </td>
+                </tr>
+            `;
+            }).join('');
+        } catch (error) {
+            console.error('載入訂單失敗:', error);
+            document.getElementById('orders-table').innerHTML = `
+            <tr><td colspan="7" class="text-center py-5 text-danger">載入失敗: ${error.message}</td></tr>
+        `;
         }
-    } catch (error) {
-        console.error('更新失敗:', error);
     }
-}
 
-function viewOrder(orderId) {
-    window.location.href = `/admin/orders/${orderId}`;
-}
+    function openShippingModal(orderId) {
+        document.getElementById('ship-order-id').value = orderId;
+        document.getElementById('tracking-number').value = '';
+        shippingModal.show();
+    }
+
+    async function submitShipping() {
+        const orderId = document.getElementById('ship-order-id').value;
+        const trackingNumber = document.getElementById('tracking-number').value.trim();
+
+        if (!trackingNumber) {
+            alert('請輸入貨運單編號');
+            return;
+        }
+
+        const token = localStorage.getItem('admin_token');
+        try {
+            const response = await fetch(`/api/shop/{{ store.slug }}/admin/orders/${orderId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    tracking_number: trackingNumber,
+                    status: 'shipped'
+                })
+            });
+
+            if (response.ok) {
+                alert('出貨成功');
+                shippingModal.hide();
+                loadOrders();
+            } else {
+                const error = await response.json();
+                alert('出貨失敗: ' + (error.detail || '未知錯誤'));
+            }
+        } catch (error) {
+            console.error('出貨失敗:', error);
+            alert('網路錯誤，請稍後再試');
+        }
+    }
+
+    function viewOrder(orderId) {
+        window.location.href = `/shop/{{ store.slug }}/admin/orders/${orderId}`;
+    }
 </script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
 {% endblock %}

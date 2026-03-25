@@ -14,7 +14,7 @@
             <div class="card">
                 <div class="card-body">
                     <h5>總計：<span id="total-price" class="text-danger">NT$ 0</span></h5>
-                    <a href="/checkout" id="checkout-btn" class="btn btn-primary btn-lg w-100" disabled>前往結帳</a>
+                    <a href="/shop/{{ store.slug }}/checkout" id="checkout-btn" class="btn btn-primary btn-lg w-100" disabled>前往結帳</a>
                 </div>
             </div>
         </div>
@@ -29,14 +29,14 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 async function loadCart() {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('customer_token_{{ store.slug }}');
     if (!token) {
         document.getElementById('cart-items').innerHTML = '<p class="text-center">請先登入</p>';
         return;
     }
     
     try {
-        const response = await fetch('/api/cart', {
+        const response = await fetch('/api/shop/{{ store.slug }}/cart', {
             headers: {
                 'Authorization': `Bearer ${token}`
             }
@@ -52,7 +52,7 @@ async function loadCart() {
                     localStorage.removeItem('token');
                     localStorage.removeItem('user');
                     if (confirm('您的登入已過期，請重新登入\n\n是否前往登入頁面？')) {
-                        window.location.href = '/login';
+                        window.location.href = '/shop/{{ store.slug }}/login';
                     }
                 }
             } else {
@@ -129,7 +129,7 @@ async function loadCart() {
             checkoutBtn.classList.remove('disabled');
             checkoutBtn.style.pointerEvents = 'auto';
             checkoutBtn.style.opacity = '1';
-            checkoutBtn.href = '/checkout';
+            checkoutBtn.href = '/shop/{{ store.slug }}/checkout';
         }
         
         // 直接更新購物車 badge 數量（不需要再調用 API）
@@ -144,9 +144,9 @@ async function loadCart() {
 }
 
 async function updateCartItem(itemId, quantity) {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('customer_token_{{ store.slug }}');
     try {
-        const response = await fetch(`/api/cart/items/${itemId}`, {
+        const response = await fetch(`/api/shop/{{ store.slug }}/cart/items/${itemId}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -177,7 +177,7 @@ async function updateCartItem(itemId, quantity) {
                     localStorage.removeItem('token');
                     localStorage.removeItem('user');
                     if (confirm('您的登入已過期，請重新登入\n\n是否前往登入頁面？')) {
-                        window.location.href = '/login';
+                        window.location.href = '/shop/{{ store.slug }}/login';
                     }
                 }
             }
@@ -188,11 +188,11 @@ async function updateCartItem(itemId, quantity) {
 }
 
 async function removeCartItem(itemId) {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('customer_token_{{ store.slug }}');
     if (!confirm('確定要刪除此商品嗎？')) return;
     
     try {
-        const response = await fetch(`/api/cart/items/${itemId}`, {
+        const response = await fetch(`/api/shop/{{ store.slug }}/cart/items/${itemId}`, {
             method: 'DELETE',
             headers: {
                 'Authorization': `Bearer ${token}`
@@ -221,7 +221,7 @@ async function removeCartItem(itemId) {
                     localStorage.removeItem('token');
                     localStorage.removeItem('user');
                     if (confirm('您的登入已過期，請重新登入\n\n是否前往登入頁面？')) {
-                        window.location.href = '/login';
+                        window.location.href = '/shop/{{ store.slug }}/login';
                     }
                 }
             }

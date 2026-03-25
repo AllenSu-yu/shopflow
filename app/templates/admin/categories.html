@@ -104,20 +104,20 @@ document.addEventListener('DOMContentLoaded', function() {
 function checkAdminAuth() {
     const token = localStorage.getItem('admin_token');
     if (!token) {
-        window.location.href = '/admin/login';
+        window.location.href = '/shop/admin/login';
     }
 }
 
 async function loadCategories() {
     const token = localStorage.getItem('admin_token');
     try {
-        const response = await fetch('/api/admin/categories', {
+        const response = await fetch('/api/shop/{{ store.slug }}/admin/categories', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         
         if (!response.ok) {
             if (response.status === 401) {
-                window.location.href = '/admin/login';
+                window.location.href = '/shop/admin/login';
                 return;
             }
             throw new Error('載入分類失敗');
@@ -184,7 +184,7 @@ async function editCategory(categoryId) {
     const token = localStorage.getItem('admin_token');
     try {
         // 先從列表中取得分類資料（因為 API 沒有單一分類的 GET endpoint）
-        const response = await fetch('/api/admin/categories', {
+        const response = await fetch('/api/shop/{{ store.slug }}/admin/categories', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         
@@ -244,7 +244,7 @@ async function saveCategory() {
         let response;
         if (categoryId) {
             // 更新分類
-            response = await fetch(`/api/admin/categories/${categoryId}`, {
+            response = await fetch(`/api/shop/{{ store.slug }}/admin/categories/${categoryId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -254,7 +254,7 @@ async function saveCategory() {
             });
         } else {
             // 新增分類
-            response = await fetch('/api/admin/categories', {
+            response = await fetch('/api/shop/{{ store.slug }}/admin/categories', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -292,7 +292,7 @@ async function deleteCategory(categoryId, categoryName) {
     
     const token = localStorage.getItem('admin_token');
     try {
-        const response = await fetch(`/api/admin/categories/${categoryId}`, {
+        const response = await fetch(`/api/shop/{{ store.slug }}/admin/categories/${categoryId}`, {
             method: 'DELETE',
             headers: {
                 'Authorization': `Bearer ${token}`

@@ -16,8 +16,7 @@ let currentProduct = null;
 let selectedVariant = null;
 
 document.addEventListener('DOMContentLoaded', function() {
-    const pathParts = window.location.pathname.split('/');
-    const productId = pathParts[pathParts.length - 1];
+    const productId = '{{ product_id }}';
     loadProductDetail(productId);
     
     // 頁面載入時初始化購物車數量
@@ -35,7 +34,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadProductDetail(productId) {
     try {
-        const response = await fetch(`/api/products/${productId}`);
+        const response = await fetch(`/api/shop/{{ store.slug }}/products/${productId}`);
         const product = await response.json();
         currentProduct = product;
         const productDetail = document.getElementById('product-detail');
@@ -249,11 +248,11 @@ async function addToCart(productId) {
     }
     
     const quantity = parseInt(document.getElementById('quantity').value);
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('customer_token_{{ store.slug }}');
     
     if (!token) {
         alert('請先登入');
-        window.location.href = '/login';
+        window.location.href = '/shop/{{ store.slug }}/login';
         return;
     }
     
@@ -280,7 +279,7 @@ async function addToCart(productId) {
             requestBody.spec_info = specInfo;
         }
         
-        const response = await fetch('/api/cart/items', {
+        const response = await fetch('/api/shop/{{ store.slug }}/cart/items', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -331,10 +330,10 @@ async function addToCart(productId) {
                     handleAuthError(response, data.detail || '請先登入');
                 } else {
                     // 如果 handleAuthError 函數不存在，使用備用處理
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('user');
+                    localStorage.removeItem('customer_token_{{ store.slug }}');
+                    localStorage.removeItem('customer_user_{{ store.slug }}');
                     if (confirm('您的登入已過期，請重新登入\n\n是否前往登入頁面？')) {
-                        window.location.href = '/login';
+                        window.location.href = '/shop/{{ store.slug }}/login';
                     }
                 }
             } else {

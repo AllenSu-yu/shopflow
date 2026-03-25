@@ -175,7 +175,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function checkAdminAuth() {
     const token = localStorage.getItem('admin_token');
     if (!token) {
-        window.location.href = '/admin/login';
+        window.location.href = '/shop/admin/login';
     }
 }
 
@@ -185,13 +185,13 @@ async function loadCarousels() {
     const token = localStorage.getItem('admin_token');
     try {
         // 傳遞 is_active=false 來獲取所有輪播圖（包括停用的）
-        const response = await fetch('/api/admin/carousels?is_active=false', {
+        const response = await fetch('/api/shop/{{ store.slug }}/admin/carousels?is_active=false', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         
         if (!response.ok) {
             if (response.status === 401) {
-                window.location.href = '/admin/login';
+                window.location.href = '/shop/admin/login';
                 return;
             }
             throw new Error('載入輪播圖失敗');
@@ -272,7 +272,7 @@ function showAddCarouselModal() {
 async function editCarousel(carouselId) {
     const token = localStorage.getItem('admin_token');
     try {
-        const response = await fetch('/api/admin/carousels?is_active=false', {
+        const response = await fetch('/api/shop/{{ store.slug }}/admin/carousels?is_active=false', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         
@@ -358,7 +358,7 @@ async function saveCarousel() {
                 formData.append('image', imageFile);
             }
             
-            const response = await fetch(`/api/admin/carousels/${carouselId}`, {
+            const response = await fetch(`/api/shop/{{ store.slug }}/admin/carousels/${carouselId}`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -388,7 +388,7 @@ async function saveCarousel() {
             formData.append('display_order', displayOrder);
             formData.append('is_active', isActive);
             
-            const response = await fetch('/api/admin/carousels', {
+            const response = await fetch('/api/shop/{{ store.slug }}/admin/carousels', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -425,7 +425,7 @@ async function deleteCarousel(carouselId, carouselTitle) {
     
     const token = localStorage.getItem('admin_token');
     try {
-        const response = await fetch(`/api/admin/carousels/${carouselId}`, {
+        const response = await fetch(`/api/shop/{{ store.slug }}/admin/carousels/${carouselId}`, {
             method: 'DELETE',
             headers: {
                 'Authorization': `Bearer ${token}`
@@ -452,13 +452,13 @@ async function deleteCarousel(carouselId, carouselTitle) {
 async function loadStoreInfo() {
     const token = localStorage.getItem('admin_token');
     try {
-        const response = await fetch('/api/admin/store-info', {
+        const response = await fetch('/api/shop/{{ store.slug }}/admin/store-info', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         
         if (!response.ok) {
             if (response.status === 401) {
-                window.location.href = '/admin/login';
+                window.location.href = '/shop/admin/login';
                 return;
             }
             throw new Error('載入商店資訊失敗');
@@ -509,7 +509,7 @@ async function saveStoreInfo() {
     }
     
     try {
-        const response = await fetch('/api/admin/store-info', {
+        const response = await fetch('/api/shop/{{ store.slug }}/admin/store-info', {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',

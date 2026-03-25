@@ -241,14 +241,14 @@ function validateImageFiles(files) {
 function checkAdminAuth() {
     const token = localStorage.getItem('admin_token');
     if (!token) {
-        window.location.href = '/admin/login';
+        window.location.href = '/shop/admin/login';
     }
 }
 
 async function loadCategories() {
     const token = localStorage.getItem('admin_token');
     try {
-        const response = await fetch('/api/admin/categories', {
+        const response = await fetch('/api/shop/{{ store.slug }}/admin/categories', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         const data = await response.json();
@@ -265,7 +265,7 @@ async function loadCategories() {
 async function loadProducts() {
     const token = localStorage.getItem('admin_token');
     try {
-        const response = await fetch('/api/admin/products', {
+        const response = await fetch('/api/shop/{{ store.slug }}/admin/products', {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         const data = await response.json();
@@ -344,7 +344,7 @@ function showAddProductModal() {
 async function editProduct(productId) {
     const token = localStorage.getItem('admin_token');
     try {
-        const response = await fetch(`/api/admin/products/${productId}`, {
+        const response = await fetch(`/api/shop/{{ store.slug }}/admin/products/${productId}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         const product = await response.json();
@@ -467,7 +467,7 @@ async function saveProduct() {
     };
     
     try {
-        const url = productId ? `/api/admin/products/${productId}` : '/api/admin/products';
+        const url = productId ? `/api/shop/{{ store.slug }}/admin/products/${productId}` : '/api/shop/{{ store.slug }}/admin/products';
         const method = productId ? 'PUT' : 'POST';
         
         const response = await fetch(url, {
@@ -489,7 +489,7 @@ async function saveProduct() {
                 try {
                     await uploadProductImages(finalProductId, newImageFiles, token);
                     // 重新載入商品資料以更新圖片列表（新增和編輯模式都需要）
-                    const productResponse = await fetch(`/api/admin/products/${finalProductId}`, {
+                    const productResponse = await fetch(`/api/shop/{{ store.slug }}/admin/products/${finalProductId}`, {
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
                     if (productResponse.ok) {
@@ -509,7 +509,7 @@ async function saveProduct() {
                 try {
                     await applyImageChanges(finalProductId, token);
                     // 重新載入商品資料以更新圖片列表
-                    const productResponse = await fetch(`/api/admin/products/${finalProductId}`, {
+                    const productResponse = await fetch(`/api/shop/{{ store.slug }}/admin/products/${finalProductId}`, {
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
                     if (productResponse.ok) {
@@ -545,7 +545,7 @@ async function deleteProduct(productId) {
     
     const token = localStorage.getItem('admin_token');
     try {
-        const response = await fetch(`/api/admin/products/${productId}`, {
+        const response = await fetch(`/api/shop/{{ store.slug }}/admin/products/${productId}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -928,7 +928,7 @@ async function applyImageChanges(productId, token) {
     // 1. 刪除標記的圖片
     for (const imageId of imagesToDelete) {
         try {
-            const response = await fetch(`/api/admin/products/${productId}/images/${imageId}`, {
+            const response = await fetch(`/api/shop/{{ store.slug }}/admin/products/${productId}/images/${imageId}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -970,7 +970,7 @@ async function applyImageChanges(productId, token) {
             const primaryChanged = originalImg && (originalImg.is_primary || false) !== isPrimary;
             
             if (orderChanged || primaryChanged) {
-                return fetch(`/api/admin/products/${productId}/images/${img.id}`, {
+                return fetch(`/api/shop/{{ store.slug }}/admin/products/${productId}/images/${img.id}`, {
                     method: 'PUT',
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -1020,7 +1020,7 @@ async function uploadProductImages(productId, imageFiles, token) {
         formData.append('display_order', String(displayOrder));
         
         try {
-            const response = await fetch(`/api/admin/products/${productId}/images`, {
+            const response = await fetch(`/api/shop/{{ store.slug }}/admin/products/${productId}/images`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`

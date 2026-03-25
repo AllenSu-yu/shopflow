@@ -1,3 +1,4 @@
+from .store import Store
 from .category import Category
 from .product import Product, ProductImage, ProductSpecGroup, ProductSpecValue, ProductVariant
 from .user import User, Customer
@@ -6,6 +7,7 @@ from .cart import Cart, CartItem
 from .cms import Carousel, StoreInfo
 
 __all__ = [
+    'Store',
     'Category',
     'Product', 'ProductImage', 'ProductSpecGroup', 'ProductSpecValue', 'ProductVariant',
     'User', 'Customer',

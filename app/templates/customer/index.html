@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadCarousels() {
     try {
-        const response = await fetch('/api/carousels');
+        const response = await fetch('/api/shop/{{ store.slug }}/carousels');
         const data = await response.json();
         const carouselInner = document.getElementById('carousel-inner');
         
@@ -202,7 +202,7 @@ function initCarousel() {
 
 async function loadCategories() {
     try {
-        const response = await fetch('/api/categories');
+        const response = await fetch('/api/shop/{{ store.slug }}/categories');
         const data = await response.json();
         const categoriesDiv = document.getElementById('categories');
         
@@ -218,7 +218,7 @@ async function loadCategories() {
                 <div class="card h-100">
                     <div class="card-body text-center">
                         <h5 class="card-title">${category.name}</h5>
-                        <a href="/products?category_id=${category.id}" class="btn btn-primary">查看商品</a>
+                        <a href="/shop/{{ store.slug }}/products?category_id=${category.id}" class="btn btn-primary">查看商品</a>
                     </div>
                 </div>
             </div>
@@ -230,7 +230,7 @@ async function loadCategories() {
 
 async function loadProducts() {
     try {
-        const response = await fetch('/api/products?limit=8');
+        const response = await fetch('/api/shop/{{ store.slug }}/products?limit=8');
         const data = await response.json();
         const productsDiv = document.getElementById('products');
         const productsSection = document.getElementById('products-section');
@@ -261,7 +261,7 @@ async function loadProducts() {
                         <div class="card-body">
                             <h5 class="product-title">${product.name}</h5>
                             <p class="product-price">NT$ ${priceDisplay}</p>
-                            <a href="/products/${product.id}" class="btn btn-primary w-100 product-btn">
+                            <a href="/shop/{{ store.slug }}/products/${product.id}" class="btn btn-primary w-100 product-btn">
                                 <i class="bi bi-cart-plus"></i> 立即購買
                             </a>
                         </div>

@@ -26,7 +26,7 @@
                         <button type="submit" class="btn btn-primary w-100">登入</button>
                     </form>
                     <div class="text-center mt-3">
-                        <a href="/register">還沒有帳號？立即註冊</a>
+                        <a href="/shop/{{ store.slug }}/register">還沒有帳號？立即註冊</a>
                     </div>
                 </div>
             </div>
@@ -153,7 +153,7 @@ document.getElementById('login-form').addEventListener('submit', async function(
     const password = document.getElementById('password').value;
     
     try {
-        const response = await fetch('/api/auth/login', {
+        const response = await fetch('/api/shop/{{ store.slug }}/auth/login', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -163,10 +163,10 @@ document.getElementById('login-form').addEventListener('submit', async function(
         
         if (response.ok) {
             const data = await response.json();
-            localStorage.setItem('token', data.access_token);
+            localStorage.setItem('customer_token_{{ store.slug }}', data.access_token);
             // API 返回的是 customer，統一存為 user
             const userData = data.customer || data.user;
-            localStorage.setItem('user', JSON.stringify(userData));
+            localStorage.setItem('customer_user_{{ store.slug }}', JSON.stringify(userData));
             
             // 如果 updateNavAuthStatus 函數存在（在 base.html 中定義），立即更新導航欄
             if (typeof updateNavAuthStatus === 'function') {
@@ -174,7 +174,7 @@ document.getElementById('login-form').addEventListener('submit', async function(
             }
             
             // 重定向到首頁
-            window.location.href = '/';
+            window.location.href = '/shop/{{ store.slug }}';
         } else {
             const data = await response.json();
             

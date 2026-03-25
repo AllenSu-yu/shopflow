@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Body
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Body, Query
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from pydantic import BaseModel
 from app import get_db
-from app.utils.auth_utils import get_current_admin
+from app.utils.dependencies import get_store, get_current_store_admin
 from app.utils.validators import (
     CategoryCreate, CategoryUpdate,
     ProductCreate, ProductUpdate,
@@ -44,14 +44,15 @@ router = APIRouter()
 # ==================== 認證相關 ====================
 
 @router.post('/auth/login')
-def admin_login(login_data: dict, db: Session = Depends(get_db)):
+def admin_login(login_data: dict, store = Depends(get_store), db: Session = Depends(get_db)):
     """後台管理員登入（使用 services）"""
     from app.utils.validators import AdminLogin
     from app.services import authenticate_admin
     
     try:
+        # data 現在預期包含 email 和 password
         admin_login_data = AdminLogin(**login_data)
-        return authenticate_admin(db, admin_login_data)
+        return authenticate_admin(db, store.id, admin_login_data)
     except Exception as e:
         logger.error(f"管理員登入錯誤：{str(e)}")
         raise HTTPException(
@@ -66,24 +67,28 @@ def admin_login(login_data: dict, db: Session = Depends(get_db)):
 def add_category(
     category_data: CategoryCreate,
     db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin)
+    admin = Depends(get_current_store_admin)
 ):
     """建立分類"""
     try:
         name = category_data.name
         
-        # 檢查分類名稱是否已存在
-        existing_category = db.query(Category).filter_by(name=name).first()
+        # 檢查分類名稱是否已存在（限同一商店）
+        existing_category = db.query(Category).filter_by(
+            name=name, 
+            store_id=admin.store_id
+        ).first()
         if existing_category:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="該分類已存在"
             )
         
-        # 檢查 sort_order 是否重複（如果提供了 sort_order）
+        # 檢查 sort_order 是否重複（限同一商店）
         if category_data.sort_order is not None:
             existing_sort_order = db.query(Category).filter(
-                Category.sort_order == category_data.sort_order
+                Category.sort_order == category_data.sort_order,
+                Category.store_id == admin.store_id
             ).first()
             if existing_sort_order:
                 raise HTTPException(
@@ -93,6 +98,7 @@ def add_category(
 
         # 建立新的分類物件並存入資料庫
         new_category = Category(
+            store_id=admin.store_id,
             name=name,
             sort_order=category_data.sort_order,
             is_active=category_data.is_active if category_data.is_active is not None else True
@@ -125,7 +131,7 @@ def add_category(
 
 
 @router.get('/categories')
-def get_categories(db: Session = Depends(get_db)):
+def get_categories(admin = Depends(get_current_store_admin), db: Session = Depends(get_db)):
     """取得所有分類（管理員端，包含所有分類）"""
     try:
         from sqlalchemy import func, case
@@ -133,6 +139,7 @@ def get_categories(db: Session = Depends(get_db)):
         # 1. 有 sort_order 值的分類排在前面，按 sort_order 由小到大排序
         # 2. sort_order 為 null 的分類排在後面，按 id 排序
         categories = db.query(Category)\
+            .filter(Category.store_id == admin.store_id)\
             .order_by(
                 case((Category.sort_order.is_(None), 999999), else_=Category.sort_order).asc(),
                 Category.id.asc()
@@ -168,10 +175,10 @@ def update_category(
     category_id: int,
     category_data: CategoryUpdate,
     db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin)
+    admin = Depends(get_current_store_admin)
 ):
     """更新分類"""
-    category = db.query(Category).filter(Category.id == category_id).first()
+    category = db.query(Category).filter(Category.id == category_id, Category.store_id == admin.store_id).first()
     if not category:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -179,9 +186,10 @@ def update_category(
         )
     
     if category_data.name:
-        # 檢查名稱是否已被其他分類使用
+        # 檢查名稱是否已被其他分類使用（限同一商店）
         existing = db.query(Category).filter(
             Category.name == category_data.name,
+            Category.store_id == admin.store_id,
             Category.id != category_id
         ).first()
         if existing:
@@ -193,9 +201,10 @@ def update_category(
     
     # 更新 sort_order（如果提供）
     if category_data.sort_order is not None:
-        # 檢查 sort_order 是否已被其他分類使用
+        # 檢查 sort_order 是否已被其他分類使用（限同一商店）
         existing_sort_order = db.query(Category).filter(
             Category.sort_order == category_data.sort_order,
+            Category.store_id == admin.store_id,
             Category.id != category_id
         ).first()
         if existing_sort_order:
@@ -227,10 +236,10 @@ def update_category(
 def delete_category(
     category_id: int,
     db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin)
+    admin = Depends(get_current_store_admin)
 ):
     """刪除分類"""
-    category = db.query(Category).filter(Category.id == category_id).first()
+    category = db.query(Category).filter(Category.id == category_id, Category.store_id == admin.store_id).first()
     if not category:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -261,11 +270,12 @@ def get_products(
     sort_by: str = "id",
     order: str = "desc",
     db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin)
+    admin = Depends(get_current_store_admin)
 ):
     """取得商品列表"""
     result = get_products_service(
         db=db,
+        store_id=admin.store_id,
         category_id=category_id,
         is_active=is_active,
         skip=skip,
@@ -298,10 +308,10 @@ def get_products(
 def get_product(
     product_id: int,
     db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin)
+    admin = Depends(get_current_store_admin)
 ):
     """取得商品詳情"""
-    result = get_product_by_id(db, product_id, include_inactive=True)
+    result = get_product_by_id(db, admin.store_id, product_id, include_inactive=True)
     
     # 處理圖片 URL
     for img in result["images"]:
@@ -320,11 +330,11 @@ def get_product(
 def create_product_route(
     product_data: ProductCreate,
     db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin)
+    admin = Depends(get_current_store_admin)
 ):
     """建立商品"""
     try:
-        return create_product(db, product_data)
+        return create_product(db, admin.store_id, product_data)
     except HTTPException:
         raise
     except Exception as e:
@@ -343,22 +353,22 @@ async def upload_product_image(
     is_primary: bool = Form(False),
     display_order: int = Form(0),
     db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin)
+    admin = Depends(get_current_store_admin)
 ):
     """上傳商品圖片"""
     from app.models.product import Product, ProductImage
     
-    # 檢查商品是否存在
-    product = db.query(Product).filter(Product.id == product_id).first()
+    # 檢查商品是否存在（product_id 這裡接收的是 sid）
+    product = db.query(Product).filter(Product.sid == product_id, Product.store_id == admin.store_id).first()
     if not product:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="商品不存在"
         )
     
-    # 檢查是否已經有主圖
+    # 檢查是否已經有主圖（使用商品的真實 ID）
     existing_primary = db.query(ProductImage).filter(
-        ProductImage.product_id == product_id,
+        ProductImage.product_id == product.id,
         ProductImage.is_primary == True
     ).first()
     
@@ -370,10 +380,10 @@ async def upload_product_image(
     if is_primary:
         # 如果前端明確指定設為主圖，設為主圖
         final_is_primary = True
-        # 如果已有主圖，移除舊主圖標記
+        # 如果已有主圖，移除舊主圖標記（使用商品的真實 ID）
         if existing_primary:
             db.query(ProductImage).filter(
-                ProductImage.product_id == product_id,
+                ProductImage.product_id == product.id,
                 ProductImage.is_primary == True
             ).update({"is_primary": False})
     
@@ -382,9 +392,9 @@ async def upload_product_image(
         # 先保存文件（使用臨時名稱）
         temp_image_path = await save_uploaded_file(file, "product", prefix=f"product_{product_id}")
         
-        # 建立圖片記錄（使用臨時路徑）
+        # 建立圖片記錄（使用商品的真實 ID）
         new_image = ProductImage(
-            product_id=product_id,
+            product_id=product.id,
             image_url=temp_image_path,
             is_primary=final_is_primary,
             display_order=display_order
@@ -457,13 +467,13 @@ def update_product_image(
     image_id: int,
     image_data: ProductImageUpdate = Body(...),
     db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin)
+    admin = Depends(get_current_store_admin)
 ):
     """更新商品圖片資訊（設置為主圖、調整順序）"""
     from app.models.product import Product, ProductImage
     
-    # 檢查商品是否存在
-    product = db.query(Product).filter(Product.id == product_id).first()
+    # 檢查商品是否存在（product_id 這裡接收的是 sid）
+    product = db.query(Product).filter(Product.sid == product_id, Product.store_id == admin.store_id).first()
     if not product:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -473,7 +483,7 @@ def update_product_image(
     # 檢查圖片是否存在
     image = db.query(ProductImage).filter(
         ProductImage.id == image_id,
-        ProductImage.product_id == product_id
+        ProductImage.product_id == product.id
     ).first()
     if not image:
         raise HTTPException(
@@ -484,7 +494,7 @@ def update_product_image(
     # 如果設為主圖，將其他圖片的主圖標記移除
     if image_data.is_primary is True:
         db.query(ProductImage).filter(
-            ProductImage.product_id == product_id,
+            ProductImage.product_id == product.id,
             ProductImage.is_primary == True,
             ProductImage.id != image_id
         ).update({"is_primary": False})
@@ -515,13 +525,13 @@ def delete_product_image(
     product_id: int,
     image_id: int,
     db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin)
+    admin = Depends(get_current_store_admin)
 ):
     """刪除商品圖片"""
     from app.models.product import Product, ProductImage
     
-    # 檢查商品是否存在
-    product = db.query(Product).filter(Product.id == product_id).first()
+    # 檢查商品是否存在（product_id 這裡接收的是 sid）
+    product = db.query(Product).filter(Product.sid == product_id, Product.store_id == admin.store_id).first()
     if not product:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -531,7 +541,7 @@ def delete_product_image(
     # 檢查圖片是否存在
     image = db.query(ProductImage).filter(
         ProductImage.id == image_id,
-        ProductImage.product_id == product_id
+        ProductImage.product_id == product.id
     ).first()
     if not image:
         raise HTTPException(
@@ -555,44 +565,73 @@ def update_product_route(
     product_id: int,
     product_data: ProductUpdate,
     db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin)
+    admin = Depends(get_current_store_admin)
 ):
     """更新商品"""
-    return update_product(db, product_id, product_data)
+    return update_product(db, admin.store_id, product_id, product_data)
 
 
 @router.delete('/products/{product_id}')
 def delete_product_route(
     product_id: int,
     db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin)
+    admin = Depends(get_current_store_admin)
 ):
     """刪除商品"""
-    return delete_product(db, product_id)
+    return delete_product(db, admin.store_id, product_id)
 
 
 # ==================== 訂單管理 ====================
 
 @router.get('/orders')
 def get_orders(
-    status: Optional[str] = None,
+    order_status: Optional[str] = Query(None, alias="status"),
+    order_number: Optional[str] = None,
+    member_number: Optional[str] = None,  # 從前端傳來可能是字串
+    customer_name: Optional[str] = None,
+    order_date: Optional[str] = None,
     skip: int = 0,
     limit: int = 20,
     db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin)
+    admin = Depends(get_current_store_admin)
 ):
     """取得訂單列表"""
-    query = db.query(Order)
+    from app.models.user import Customer
+    from sqlalchemy import func
+    from datetime import datetime
+
+    query = db.query(Order).join(Customer, Order.customer_id == Customer.id).filter(Order.store_id == admin.store_id)
     
-    if status:
+    if order_status:
         try:
-            order_status = OrderStatus(status)
-            query = query.filter(Order.status == order_status)
+            status_enum = OrderStatus(order_status)
+            query = query.filter(Order.status == status_enum)
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"無效的訂單狀態：{status}"
+                detail=f"無效的訂單狀態：{order_status}"
             )
+    
+    if order_number:
+        query = query.filter(Order.order_number == order_number)
+        
+    if member_number:
+        try:
+            query = query.filter(Customer.member_number == int(member_number))
+        except ValueError:
+            # 如果不是數字，可能查不到
+            query = query.filter(False)
+            
+    if customer_name:
+        query = query.filter(Customer.name.ilike(f"%{customer_name}%"))
+        
+    if order_date:
+        try:
+            # 轉換 order_date 為日期物件並查詢
+            date_obj = datetime.strptime(order_date, '%Y-%m-%d').date()
+            query = query.filter(func.date(Order.created_at) == date_obj)
+        except ValueError:
+            pass # 格式不符則忽略此篩選條件
     
     total = query.count()
     orders = query.order_by(Order.created_at.desc()).offset(skip).limit(limit).all()
@@ -603,6 +642,7 @@ def get_orders(
             "id": order.id,
             "order_number": order.order_number,
             "customer_id": order.customer_id,
+            "customer_member_number": order.customer.member_number if order.customer else None,
             "customer_name": order.customer.name if order.customer else None,
             "status": order.status.value,
             "total": order.total,
@@ -623,10 +663,10 @@ def get_orders(
 def get_order(
     order_id: int,
     db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin)
+    admin = Depends(get_current_store_admin)
 ):
     """取得訂單詳情"""
-    return get_order_by_id(db, order_id)
+    return get_order_by_id(db, admin.store_id, order_id)
 
 
 @router.put('/orders/{order_id}')
@@ -634,10 +674,10 @@ def update_order(
     order_id: int,
     order_data: OrderUpdate,
     db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin)
+    admin = Depends(get_current_store_admin)
 ):
     """更新訂單狀態"""
-    return update_order_status(db, order_id, order_data)
+    return update_order_status(db, admin.store_id, order_id, order_data)
 
 
 # ==================== CMS 管理 ====================
@@ -646,10 +686,10 @@ def update_order(
 def get_carousels_route(
     is_active: Optional[bool] = None,
     db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin)
+    admin = Depends(get_current_store_admin)
 ):
     """取得輪播圖列表"""
-    carousels = get_carousels(db, is_active=is_active if is_active is not None else True)
+    carousels = get_carousels(db, admin.store_id, is_active=is_active if is_active is not None else True)
     # 轉換 image_url 為完整的 URL 路徑，使用 updated_at 作為版本號以強制刷新 CDN 快取
     for carousel in carousels:
         updated_at = carousel.get("updated_at")
@@ -668,7 +708,7 @@ async def create_carousel_route(
     display_order: int = Form(0),
     is_active: bool = Form(True),
     db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin)
+    admin = Depends(get_current_store_admin)
 ):
     """建立輪播圖"""
     try:
@@ -684,7 +724,7 @@ async def create_carousel_route(
             is_active=is_active
         )
         
-        result = create_carousel(db, carousel_data)
+        result = create_carousel(db, admin.store_id, carousel_data)
         # 使用 updated_at 作為版本號以強制刷新 CDN 快取
         updated_at = result.get("updated_at")
         result["image_url"] = get_file_url(result["image_url"], version=updated_at)
@@ -709,7 +749,7 @@ async def update_carousel_route(
     is_active: Optional[str] = Form(None),
     image: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin)
+    admin = Depends(get_current_store_admin)
 ):
     """更新輪播圖（支援更新 title, link_url, display_order, is_active 和圖片）
     
@@ -717,7 +757,7 @@ async def update_carousel_route(
     """
     try:
         # 先取得輪播圖（用於檢查是否存在和處理圖片）
-        carousel = get_carousel_by_id(db, carousel_id)
+        carousel = get_carousel_by_id(db, admin.store_id, carousel_id)
         if not carousel:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -780,7 +820,7 @@ async def update_carousel_route(
         
         # 更新其他欄位
         if update_dict:
-            result = update_carousel(db, carousel_id, update_dict)
+            result = update_carousel(db, admin.store_id, carousel_id, update_dict)
         else:
             # 如果只更新圖片，沒有更新其他欄位，重新整理 carousel 以取得最新資料
             db.refresh(carousel)
@@ -818,13 +858,13 @@ async def update_carousel_image_route(
     carousel_id: int,
     image: UploadFile = File(...),
     db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin)
+    admin: dict = Depends(get_current_store_admin) # Changed from get_current_admin to get_current_store_admin
 ):
     """更新輪播圖圖片
     
     機制：將新圖片以舊圖片相同檔名覆蓋保存，資料庫 image_url 不變
     """
-    carousel = get_carousel_by_id(db, carousel_id)
+    carousel = get_carousel_by_id(db, admin.store_id, carousel_id) # Added admin.store_id
     if not carousel:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -863,16 +903,19 @@ async def update_carousel_image_route(
 def delete_carousel_route(
     carousel_id: int,
     db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin)
+    admin = Depends(get_current_store_admin)
 ):
     """刪除輪播圖"""
-    return delete_carousel(db, carousel_id)
+    return delete_carousel(db, admin.store_id, carousel_id)
 
 
 @router.get('/store-info')
-def get_store_info_route(db: Session = Depends(get_db)):
+def get_store_info_route(
+    db: Session = Depends(get_db),
+    admin = Depends(get_current_store_admin) # Added admin dependency
+):
     """取得商店資訊"""
-    result = get_store_info(db)
+    result = get_store_info(db, admin.store_id) # Added admin.store_id
     if result.get("logo_url"):
         result["logo_url"] = get_file_url(result["logo_url"])
     if result.get("favicon_url"):
@@ -882,14 +925,21 @@ def get_store_info_route(db: Session = Depends(get_db)):
 
 @router.put('/store-info')
 def update_store_info_route(
-    store_data: StoreInfoUpdate,
+    store_info: StoreInfoUpdate,
     db: Session = Depends(get_db),
-    admin: dict = Depends(get_current_admin)
+    admin = Depends(get_current_store_admin)
 ):
-    """更新商店資訊"""
-    result = update_store_info(db, store_data)
-    if result.get("logo_url"):
-        result["logo_url"] = get_file_url(result["logo_url"])
-    if result.get("favicon_url"):
-        result["favicon_url"] = get_file_url(result["favicon_url"])
-    return result
+    """取得商店資訊"""
+    try:
+        result = update_store_info(db, admin.store_id, store_info)
+        if result.get("logo_url"):
+            result["logo_url"] = get_file_url(result["logo_url"])
+        if result.get("favicon_url"):
+            result["favicon_url"] = get_file_url(result["favicon_url"])
+        return result
+    except Exception as e:
+        logger.error(f"更新商店資訊時發生錯誤:{str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="伺服器內部錯誤"
+        )

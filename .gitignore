@@ -23,3 +23,12 @@ deployment/nginx/*.conf.prod
 deployment/nginx/README.md
 deployment/nginx/shopflow.conf.example
 check_app_logs.sh
+app/config.py
+scripts/migrate_sid.py
+check_schema.py
+migrate_db.py
+migrate_member_number.py
+replace_urls.py
+tmp_check_variants.py
+tmp_list_variants_p3.py
+tmp_search_order_items.py

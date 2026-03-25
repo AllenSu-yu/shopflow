@@ -14,7 +14,7 @@
                 <div class="card-body">
                     <ul class="list-group list-group-flush" id="category-filter">
                         <li class="list-group-item">
-                            <a href="/products" class="text-decoration-none">全部商品</a>
+                            <a href="/shop/{{ store.slug }}/products" class="text-decoration-none">全部商品</a>
                         </li>
                     </ul>
                 </div>
@@ -23,11 +23,17 @@
         
         <!-- 商品列表 -->
         <div class="col-md-9">
-            <div class="d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
                 <h2>商品列表</h2>
-                <div>
+                <div class="d-flex gap-2">
+                    <select class="form-select" id="sort-select" onchange="handleSortChange()" style="width: auto;">
+                        <option value="id_desc">建立時間：從新到舊</option>
+                        <option value="id_asc">建立時間：從舊到新</option>
+                        <option value="price_desc">價格：由高至低</option>
+                        <option value="price_asc">價格：由低至高</option>
+                    </select>
                     <input type="text" class="form-control" id="search-input" placeholder="搜尋商品" 
-                           onkeyup="handleSearchInput(event)">
+                           onkeyup="handleSearchInput(event)" style="width: 200px;">
                 </div>
             </div>
             
@@ -59,6 +65,10 @@ document.addEventListener('DOMContentLoaded', function() {
     currentCategoryId = categoryIdParam ? parseInt(categoryIdParam) : null;
     currentSearch = urlParams.get('search') || '';
     
+    // 初始化排序
+    const sortParam = urlParams.get('sort') || 'id_desc';
+    document.getElementById('sort-select').value = sortParam;
+    
     if (currentSearch) {
         document.getElementById('search-input').value = currentSearch;
     }
@@ -69,7 +79,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadCategories() {
     try {
-        const response = await fetch('/api/categories');
+        const response = await fetch('/api/shop/{{ store.slug }}/categories');
         const data = await response.json();
         const categoryFilter = document.getElementById('category-filter');
         const categories = data.categories || [];
@@ -102,15 +112,31 @@ async function loadProducts(page = 1) {
         let url;
         let response;
         
+        // 獲取排序參數
+        const sortValue = document.getElementById('sort-select').value;
+        let sortBy = 'id';
+        let order = 'desc';
+        
+        if (sortValue === 'id_asc') {
+            sortBy = 'id';
+            order = 'asc';
+        } else if (sortValue === 'price_desc') {
+            sortBy = 'price_max';
+            order = 'desc';
+        } else if (sortValue === 'price_asc') {
+            sortBy = 'price_min';
+            order = 'asc';
+        }
+        
         // 如果有搜尋關鍵字，使用搜尋端點
         if (currentSearch && currentSearch.trim()) {
-            url = `/api/products/search?keyword=${encodeURIComponent(currentSearch.trim())}&skip=${skip}&limit=${limit}`;
+            url = `/api/shop/{{ store.slug }}/products/search?keyword=${encodeURIComponent(currentSearch.trim())}&skip=${skip}&limit=${limit}&sort_by=${sortBy}&order=${order}`;
             if (currentCategoryId) {
                 url += `&category_id=${currentCategoryId}`;
             }
         } else {
             // 否則使用一般商品列表端點
-            url = `/api/products?skip=${skip}&limit=${limit}`;
+            url = `/api/shop/{{ store.slug }}/products?skip=${skip}&limit=${limit}&sort_by=${sortBy}&order=${order}`;
             if (currentCategoryId) {
                 url += `&category_id=${currentCategoryId}`;
             }
@@ -147,7 +173,7 @@ async function loadProducts(page = 1) {
                     <div class="card-body">
                         <h5 class="card-title">${product.name}</h5>
                         <p class="card-text text-danger fw-bold">NT$ ${product.price_range?.display || '0'}</p>
-                        <a href="/products/${product.id}" class="btn btn-primary">查看詳情</a>
+                        <a href="/shop/{{ store.slug }}/products/${product.id}" class="btn btn-primary">查看詳情</a>
                     </div>
                 </div>
             </div>
@@ -258,6 +284,18 @@ function updateCategoryHighlight() {
             link.classList.remove('fw-bold');
         }
     });
+}
+
+function handleSortChange() {
+    const sortValue = document.getElementById('sort-select').value;
+    
+    // 更新 URL 參數
+    const url = new URL(window.location);
+    url.searchParams.set('sort', sortValue);
+    window.history.pushState({}, '', url);
+    
+    // 重新載入商品 (回到第一頁)
+    loadProducts(1);
 }
 </script>
 {% endblock %}
