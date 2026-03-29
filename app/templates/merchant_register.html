@@ -41,7 +41,7 @@
                         <div class="mb-4">
                             <label for="adminPassword" class="form-label">管理員密碼 <span class="text-danger">*</span></label>
                             <div class="input-group">
-                                <input type="password" class="form-control" id="adminPassword" name="adminPassword" required>
+                                <input type="password" class="form-control" id="adminPassword" name="adminPassword" required minlength="6" placeholder="至少 6 個字元">
                                 <button class="btn btn-outline-secondary" type="button" id="togglePassword">
                                     <i class="bi bi-eye"></i>
                                 </button>
@@ -95,6 +95,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const adminEmail = document.getElementById('adminEmail').value;
         const adminPassword = passwordInput.value;
         
+        if (adminPassword.length < 6) {
+            alert('密碼長度必須至少為 6 個字元');
+            return;
+        }
+
         // Disable 按鈕顯示載入中
         submitBtn.disabled = true;
         submitSpinner.classList.remove('d-none');
@@ -121,8 +126,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 alert('商店註冊成功！即將為您導向後台登入頁面。');
                 window.location.href = `/shop/${storeSlug}/admin/login`;
             } else {
+                // 處理 FastAPI Pydantic 回傳的 Validation Error (Array) 或 一般錯誤 (String)
+                let errorMsg = '請檢查輸入資料後重試';
+                if (Array.isArray(data.detail)) {
+                    // Pydantic Validation Error 處理
+                    if (data.detail[0].type === 'string_too_short') {
+                        errorMsg = '密碼長度必須至少為 6 個字元';
+                    } else {
+                        errorMsg = data.detail[0].msg;
+                    }
+                } else if (data.detail) {
+                    errorMsg = data.detail;
+                }
+                
                 // 顯示錯誤訊息
-                alert(`註冊失敗：${data.detail || '請檢查輸入資料後重試'}`);
+                alert(`註冊失敗：${errorMsg}`);
                 submitBtn.disabled = false;
                 submitSpinner.classList.add('d-none');
                 submitBtn.childNodes[2].textContent = ' 免費註冊商店';
