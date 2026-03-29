@@ -71,8 +71,12 @@ from .controllers import (
     page_router,
     merchant_router,
     global_router,
-    admin_global_router
+    admin_global_router,
+    home_router
 )
+
+# 全局首頁 (例如: /)
+app.include_router(home_router, prefix="", tags=["home"])
 
 # 全局 API（例如：商店註冊 /api/merchant/register）
 app.include_router(global_router, prefix="/api", tags=["global"])

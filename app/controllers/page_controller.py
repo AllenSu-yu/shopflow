@@ -8,6 +8,12 @@ from sqlalchemy.orm import Session
 router = APIRouter()
 merchant_router = APIRouter()
 admin_global_router = APIRouter()
+home_router = APIRouter()
+
+@home_router.get("/", response_class=HTMLResponse)
+async def landing_page(request: Request):
+    """招商首頁"""
+    return templates.TemplateResponse(request=request, name="landing.html")
 
 @merchant_router.get("/register", response_class=HTMLResponse)
 async def merchant_register_page(request: Request):
