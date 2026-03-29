@@ -54,6 +54,6 @@ class Config:
     APP_RELOAD = os.getenv('APP_RELOAD', 'true' if IS_DEVELOPMENT else 'false').lower() == 'true'
     # TapPay 設定
     TAPPAY_APP_ID = os.getenv('TAPPAY_APP_ID', '166540')
-    TAPPAY_APP_KEY = os.getenv('TAPPAY_APP_KEY', 'app_rkBfXxW6wxFAhI95Q0PtCJMqklm1MYHrPvH7copgBZqsZ9WlgrmZnh3E4Oc6')
+    TAPPAY_APP_KEY = os.getenv('TAPPAY_APP_KEY')
     TAPPAY_PARTNER_KEY = os.getenv('TAPPAY_PARTNER_KEY')
-    TAPPAY_MERCHANT_ID = os.getenv('TAPPAY_MERCHANT_ID', 'tppf_allensu_GP_POS_3')
+    TAPPAY_MERCHANT_ID = os.getenv('TAPPAY_MERCHANT_ID')
