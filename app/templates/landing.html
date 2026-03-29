@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShopFlow - 開創您的品牌電商</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* CSS reset & variables */
+        :root {
+            --primary: #4F46E5;
+            --primary-hover: #4338ca;
+            --secondary: #ec4899;
+            --dark: #0f172a;
+            --light: #f8fafc;
+            --glass: rgba(255, 255, 255, 0.05);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            background: #0f172a;
+            background: radial-gradient(circle at top right, #1e1b4b, #0f172a);
+            color: var(--light);
+            overflow-x: hidden;
+        }
+        /* Navbar */
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 5%;
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 100;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(10px);
+            box-sizing: border-box;
+            border-bottom: 1px solid var(--border);
+        }
+        .logo {
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: linear-gradient(to right, #60a5fa, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .nav-btn {
+            background-color: transparent;
+            color: var(--light);
+            border: 1px solid var(--border);
+            padding: 0.5rem 1.5rem;
+            border-radius: 999px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .nav-btn:hover {
+            background: var(--glass);
+            border-color: var(--light);
+        }
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 0 5%;
+            position: relative;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            background: radial-gradient(circle, rgba(99,102,241,0.2) 0%, transparent 60%);
+            width: 600px;
+            height: 600px;
+            top: 20%;
+            left: -100px;
+            z-index: -1;
+        }
+        .hero h1 {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            line-height: 1.2;
+            background: linear-gradient(to right, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .hero p {
+            font-size: 1.2rem;
+            color: #94a3b8;
+            max-width: 600px;
+            margin-bottom: 2.5rem;
+        }
+        .cta-btn {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: #fff;
+            padding: 1rem 3rem;
+            border-radius: 999px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            text-decoration: none;
+            box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.5);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .cta-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 20px 30px -5px rgba(79, 70, 229, 0.6);
+        }
+        /* Features Section */
+        .features {
+            padding: 5rem 5%;
+            position: relative;
+        }
+        .section-title {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 3rem;
+            background: linear-gradient(to right, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+        .card {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            padding: 2.5rem;
+            border-radius: 1.5rem;
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s, background 0.3s;
+        }
+        .card:hover {
+            transform: translateY(-10px);
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        .card-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(to right, #60a5fa, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .card p {
+            color: #94a3b8;
+            line-height: 1.6;
+        }
+        /* Showcase Section */
+        .showcase {
+            padding: 5rem 5%;
+            background: rgba(255, 255, 255, 0.02);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+        .showcase-row {
+            display: flex;
+            align-items: center;
+            gap: 4rem;
+            margin-bottom: 6rem;
+        }
+        .showcase-row:last-child {
+            margin-bottom: 0;
+        }
+        .showcase-row.reverse {
+            flex-direction: row-reverse;
+        }
+        .showcase-text {
+            flex: 1;
+        }
+        .showcase-text h3 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(to right, #60a5fa, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .showcase-text p {
+            font-size: 1.1rem;
+            color: #94a3b8;
+            line-height: 1.8;
+        }
+        .showcase-img {
+            flex: 1;
+            border-radius: 1rem;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+            border: 1px solid var(--border);
+            background: #000;
+        }
+        .showcase-img img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 3rem 5%;
+            background: rgba(15, 23, 42, 0.9);
+            color: #64748b;
+        }
+        
+        @media (max-width: 768px) {
+            .showcase-row, .showcase-row.reverse {
+                flex-direction: column;
+                gap: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="logo">ShopFlow</div>
+        <a href="/merchant/register" class="nav-btn">立即註冊</a>
+    </nav>
+
+    <section class="hero">
+        <h1>輕鬆打造專屬的<br>品牌線上商店</h1>
+        <p>註冊專屬網址、輕鬆更新輪播圖與上架商品，ShopFlow 提供您開展電商事業所需的核心管理系統，簡單快速！</p>
+        <a href="/merchant/register" class="cta-btn">免費開立商店</a>
+    </section>
+
+    <section class="features">
+        <h2 class="section-title">為什麼選擇 ShopFlow？</h2>
+        <div class="grid">
+            <div class="card">
+                <div class="card-icon">🚀</div>
+                <h3>快速架站，自訂品牌首頁</h3>
+                <p>註冊後立即獲得專屬的商店網址。透過簡單明瞭的後台介面，您可以輕鬆配置首頁輪播圖並快速上架商品，馬上開張營業。</p>
+            </div>
+            <div class="card">
+                <div class="card-icon">💳</div>
+                <h3>完整購物車與安全支付</h3>
+                <p>內建流暢的消費者購物車動線，並已深度整合 TapPay 安全金流支付，為顧客提供舒適且令人安心的結帳體驗。</p>
+            </div>
+            <div class="card">
+                <div class="card-icon">📦</div>
+                <h3>進階的訂單與商品管理</h3>
+                <p>直覺化的商家管理後台，除了彈性的商品與分類管理外，更支援多維度的訂單進階篩選與狀態追蹤，出貨管理不再繁瑣。</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="showcase">
+        <h2 class="section-title">實際畫面搶先看</h2>
+        
+        <div class="showcase-row">
+            <div class="showcase-text">
+                <h3>直覺的後台管理介面</h3>
+                <p>不僅提供商品的新增、編輯、刪除，還擁有專屬的「商店與首頁設定」頁面，讓您隨時更新吸睛的活動輪播圖，商店營運就在彈指之間。</p>
+            </div>
+            <div class="showcase-img">
+                <img src="/static/images/admin_showcase.png" alt="後台管理介面 (請放置對應圖片)">
+            </div>
+        </div>
+
+        <div class="showcase-row reverse">
+            <div class="showcase-text">
+                <h3>吸引人的前台購物體驗</h3>
+                <p>響應式且高質感的現代化前台設計。消費者一進到首頁就能看到您用心配置的優惠輪播與熱門商品，輕鬆激發購買慾望。</p>
+            </div>
+            <div class="showcase-img">
+                <img src="/static/images/frontend_showcase.png" alt="前台購物體驗 (請放置對應圖片)">
+            </div>
+        </div>
+
+        <div class="showcase-row">
+            <div class="showcase-text">
+                <h3>明瞭的購物車系統</h3>
+                <p>清晰好操作的購物車明細，以及整合於系統內的安全結帳動線，提供消費者一氣呵成的結帳旅程，有效降低購物車放棄率。</p>
+            </div>
+            <div class="showcase-img">
+                <img src="/static/images/cart_showcase.png" alt="購物車系統 (請放置對應圖片)">
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <p>&copy; 2026 ShopFlow. All rights reserved.</p>
+    </footer>
+
+</body>
+</html>
