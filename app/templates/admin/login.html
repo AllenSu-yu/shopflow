@@ -60,7 +60,18 @@ document.getElementById('login-form').addEventListener('submit', async function(
             }
         } else {
             const data = await response.json();
-            alert(data.detail || '登入失敗');
+            if (Array.isArray(data.detail)) {
+                const errorMessages = data.detail.map(err => {
+                    const field = err.loc ? err.loc[err.loc.length - 1] : '欄位';
+                    if (err.type === 'string_too_short') {
+                        return `${field}長度過短 (至少 ${err.ctx?.min_length || 6} 個字元)`;
+                    }
+                    return `${field}: ${err.msg}`;
+                }).join('\n');
+                alert(errorMessages);
+            } else {
+                alert(data.detail || '登入失敗');
+            }
         }
     } catch (error) {
         console.error('登入失敗:', error);
